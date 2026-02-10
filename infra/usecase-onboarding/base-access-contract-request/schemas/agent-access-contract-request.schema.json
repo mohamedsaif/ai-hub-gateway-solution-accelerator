@@ -1,0 +1,272 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Agent Access Contract Request",
+  "description": "User-friendly schema for requesting AI Hub Gateway access contracts",
+  "type": "object",
+  "required": ["contractMetadata", "accessRequirements"],
+  "properties": {
+    "contractMetadata": {
+      "type": "object",
+      "description": "Basic information about the contract request",
+      "required": ["agentName", "businessUnit", "environment"],
+      "properties": {
+        "agentName": {
+          "type": "string",
+          "description": "Name of the agent requesting access (e.g., 'HRAgent', 'SalesAgent')",
+          "pattern": "^[a-zA-Z0-9-]+$"
+        },
+        "businessUnit": {
+          "type": "string",
+          "description": "Business unit or department (e.g., 'HR', 'Sales', 'Retail')"
+        },
+        "environment": {
+          "type": "string",
+          "description": "Target environment",
+          "enum": ["DEV", "TEST", "PROD"]
+        },
+        "description": {
+          "type": "string",
+          "description": "Brief description of the agent's purpose"
+        },
+        "owner": {
+          "type": "string",
+          "description": "Email or ID of the contract owner"
+        }
+      }
+    },
+    "accessRequirements": {
+      "type": "object",
+      "description": "AI service access requirements",
+      "properties": {
+        "models": {
+          "type": "array",
+          "description": "List of AI models the agent needs access to",
+          "items": {
+            "type": "object",
+            "required": ["modelName"],
+            "properties": {
+              "modelName": {
+                "type": "string",
+                "description": "Model deployment name (e.g., 'gpt-4o', 'text-embedding-3-large', 'deepseek-r1')"
+              },
+              "tokensPerMinute": {
+                "type": "integer",
+                "description": "Token limit per minute (TPM) for this specific model",
+                "minimum": 0
+              },
+              "tokenQuota": {
+                "type": "integer",
+                "description": "Total token quota for this model",
+                "minimum": 0
+              },
+              "tokenQuotaPeriod": {
+                "type": "string",
+                "description": "Period for token quota",
+                "enum": ["Hourly", "Daily", "Weekly", "Monthly"]
+              }
+            }
+          }
+        },
+        "globalLimits": {
+          "type": "object",
+          "description": "Global limits across all models",
+          "properties": {
+            "tokensPerMinute": {
+              "type": "integer",
+              "description": "Total TPM across all models",
+              "minimum": 0
+            },
+            "tokenQuota": {
+              "type": "integer",
+              "description": "Total token quota across all models",
+              "minimum": 0
+            },
+            "tokenQuotaPeriod": {
+              "type": "string",
+              "description": "Period for global token quota",
+              "enum": ["Hourly", "Daily", "Weekly", "Monthly"]
+            }
+          }
+        },
+        "allowedBackends": {
+          "type": "array",
+          "description": "List of allowed backend IDs (leave empty to allow all)",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "contentSafety": {
+      "type": "object",
+      "description": "Content safety and moderation settings",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable content safety checks",
+          "default": false
+        },
+        "backendId": {
+          "type": "string",
+          "description": "Content safety backend ID",
+          "default": "content-safety-backend"
+        },
+        "shieldPrompt": {
+          "type": "boolean",
+          "description": "Enable prompt shielding",
+          "default": false
+        },
+        "categories": {
+          "type": "array",
+          "description": "Content safety categories with thresholds",
+          "items": {
+            "type": "object",
+            "required": ["name", "threshold"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "enum": ["Hate", "Violence", "Sexual", "SelfHarm"]
+              },
+              "threshold": {
+                "type": "integer",
+                "description": "Threshold level (0-8, where higher is more restrictive)",
+                "minimum": 0,
+                "maximum": 8
+              }
+            }
+          }
+        },
+        "applicableModels": {
+          "type": "array",
+          "description": "Models to which content safety applies (leave empty for all)",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "piiHandling": {
+      "type": "object",
+      "description": "PII (Personally Identifiable Information) handling settings",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable PII anonymization/deanonymization",
+          "default": false
+        },
+        "confidenceThreshold": {
+          "type": "number",
+          "description": "Confidence threshold for PII detection (0.0-1.0)",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.75
+        },
+        "detectionLanguage": {
+          "type": "string",
+          "description": "Language for PII detection ('en', 'es', 'fr', 'auto', etc.)",
+          "default": "en"
+        },
+        "entityCategoryExclusions": {
+          "type": "array",
+          "description": "PII entity categories to exclude from detection",
+          "items": {
+            "type": "string"
+          }
+        },
+        "customRegexPatterns": {
+          "type": "array",
+          "description": "Custom regex patterns for PII detection",
+          "items": {
+            "type": "object",
+            "required": ["pattern", "category"],
+            "properties": {
+              "pattern": {
+                "type": "string",
+                "description": "Regular expression pattern"
+              },
+              "category": {
+                "type": "string",
+                "description": "Category name for this pattern (e.g., 'CREDIT_CARD', 'PASSPORT_NUMBER')"
+              }
+            }
+          }
+        },
+        "stateSaving": {
+          "type": "boolean",
+          "description": "Enable PII state saving to Event Hub",
+          "default": false
+        }
+      }
+    },
+    "usageTracking": {
+      "type": "object",
+      "description": "Usage tracking and custom dimensions",
+      "properties": {
+        "customDimensions": {
+          "type": "array",
+          "description": "Custom dimensions for usage tracking (header names)",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 10
+        },
+        "trackEndUserId": {
+          "type": "boolean",
+          "description": "Track end user ID from header",
+          "default": false
+        },
+        "trackSessionId": {
+          "type": "boolean",
+          "description": "Track session ID from header",
+          "default": false
+        },
+        "trackAppId": {
+          "type": "boolean",
+          "description": "Track application ID from header",
+          "default": false
+        }
+      }
+    },
+    "alerts": {
+      "type": "object",
+      "description": "Alert configuration for contract events",
+      "properties": {
+        "throttlingEvents": {
+          "type": "boolean",
+          "description": "Enable alerts for throttling events",
+          "default": false
+        },
+        "contentSafetyViolations": {
+          "type": "boolean",
+          "description": "Enable alerts for content safety violations",
+          "default": false
+        },
+        "unauthorizedAccess": {
+          "type": "boolean",
+          "description": "Enable alerts for unauthorized access attempts",
+          "default": false
+        }
+      }
+    },
+    "additionalPolicies": {
+      "type": "object",
+      "description": "Additional policy configuration",
+      "properties": {
+        "customInboundPolicies": {
+          "type": "array",
+          "description": "Custom inbound policy XML snippets",
+          "items": {
+            "type": "string"
+          }
+        },
+        "customOutboundPolicies": {
+          "type": "array",
+          "description": "Custom outbound policy XML snippets",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

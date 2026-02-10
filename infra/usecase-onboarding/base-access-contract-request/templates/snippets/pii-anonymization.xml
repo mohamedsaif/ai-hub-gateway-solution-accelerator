@@ -1,0 +1,24 @@
+<!-- PII Detection and Anonymization -->
+<set-variable name="piiAnonymizationEnabled" value="true" />
+<!-- Variables required by pii-anonymization fragment -->
+<choose>
+  <when condition="@(context.Variables.GetValueOrDefault&lt;string&gt;("piiAnonymizationEnabled") == "true")">
+    <!-- Configure PII detection settings -->
+    <set-variable name="piiConfidenceThreshold" value="{{CONFIDENCE_THRESHOLD}}" />
+    <set-variable name="piiEntityCategoryExclusions" value="{{ENTITY_EXCLUSIONS}}" />
+    <set-variable name="piiDetectionLanguage" value="{{DETECTION_LANGUAGE}}" />
+    
+    <!-- Configure regex patterns for custom PII detection -->
+    <set-variable name="piiRegexPatterns" value="@{
+      var patterns = new JArray {
+        {{REGEX_PATTERNS}}
+      };
+      return patterns.ToString();
+    }" />
+    <set-variable name="piiInputContent" value="@(context.Request.Body.As&lt;string&gt;(preserveContent: true))" />
+    <!-- Include the PII anonymization fragment -->
+    <include-fragment fragment-id="pii-anonymization" />
+    <!-- Replace the request body with anonymized content -->
+    <set-body>@(context.Variables.GetValueOrDefault&lt;string&gt;("piiAnonymizedContent"))</set-body>
+  </when>
+</choose>

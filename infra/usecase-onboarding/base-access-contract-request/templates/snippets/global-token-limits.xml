@@ -1,0 +1,9 @@
+<!-- Capacity management: Product Level (across all models) -->
+<azure-openai-token-limit 
+  counter-key="@(context.Product?.Name?.ToString() ?? "Portal-Admin")" 
+  tokens-per-minute="{{TOKENS_PER_MINUTE}}" 
+  estimate-prompt-tokens="false" 
+  tokens-consumed-header-name="consumed-tokens" 
+  remaining-tokens-header-name="remaining-tokens" 
+  {{TOKEN_QUOTA_PARAMS}}
+  retry-after-header-name="retry-after" />

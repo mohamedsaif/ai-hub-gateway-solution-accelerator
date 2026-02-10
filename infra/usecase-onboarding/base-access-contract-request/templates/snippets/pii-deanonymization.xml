@@ -1,0 +1,18 @@
+<!-- PII Deanonymization -->
+<set-variable name="responseBodyContent" value="@(context.Response.Body.As&lt;string&gt;(preserveContent: true))" />
+<choose>
+  <when condition="@(context.Variables.GetValueOrDefault&lt;string&gt;("piiAnonymizationEnabled") == "true" &amp;&amp; 
+                  context.Variables.ContainsKey("piiMappings"))">
+    <!-- Use stored response body for deanonymization -->
+    <set-variable name="piiDeanonymizeContentInput" value="@(context.Variables.GetValueOrDefault&lt;string&gt;("responseBodyContent"))" />
+    <include-fragment fragment-id="pii-deanonymization" />
+    <!-- Variables required by pii-state-saving fragment -->
+    {{STATE_SAVING_BLOCK}}
+    <!-- Replace response with deanonymized content -->
+    <set-body>@(context.Variables.GetValueOrDefault&lt;string&gt;("piiDeanonymizedContentOutput"))</set-body>
+  </when>
+  <otherwise>
+    <!-- Pass through original response using stored content -->
+    <set-body>@(context.Variables.GetValueOrDefault&lt;string&gt;("responseBodyContent"))</set-body>
+  </otherwise>
+</choose>

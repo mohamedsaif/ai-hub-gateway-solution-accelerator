@@ -1,0 +1,37 @@
+<policies>
+  <inbound>
+    <base />
+    
+    <!-- PLACEHOLDER:ALLOWED_BACKENDS -->
+    
+    <!-- PLACEHOLDER:MODEL_RESTRICTIONS -->
+    
+    <!-- PLACEHOLDER:CONTENT_SAFETY -->
+    
+    <!-- PLACEHOLDER:MODEL_SPECIFIC_TOKEN_LIMITS -->
+    
+    <!-- PLACEHOLDER:GLOBAL_TOKEN_LIMITS -->
+    
+    <!-- PLACEHOLDER:PII_ANONYMIZATION -->
+    
+    <!-- PLACEHOLDER:USAGE_TRACKING_VARIABLES -->
+    
+    <!-- PLACEHOLDER:CUSTOM_INBOUND_POLICIES -->
+  </inbound>
+  
+  <backend>
+    <base />
+  </backend>
+  
+  <outbound>
+    <base />
+    
+    <!-- PLACEHOLDER:PII_DEANONYMIZATION -->
+    
+    <!-- PLACEHOLDER:CUSTOM_OUTBOUND_POLICIES -->
+  </outbound>
+  
+  <on-error>
+    <base />
+  </on-error>
+</policies>

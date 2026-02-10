@@ -1,0 +1,8 @@
+<!-- Restrict access for this product to specific models -->
+<choose>
+  <when condition="@(!new [] { {{ALLOWED_MODELS}} }.Contains(context.Request.MatchedParameters["deployment-id"] ?? String.Empty))">
+    <return-response>
+      <set-status code="401" reason="Unauthorized model access" />
+    </return-response>
+  </when>
+</choose>
