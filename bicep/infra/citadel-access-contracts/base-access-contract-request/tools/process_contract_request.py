@@ -300,41 +300,75 @@ class ContractRequestProcessor:
         custom_outbound = additional.get('customOutboundPolicies', [])
         return '\n'.join(custom_outbound)
     
-    def generate_bicep_parameters(self, apim_config: Dict, kv_config: Dict, existing_services: Dict) -> Dict:
-        """Generate Bicep deployment parameters"""
+    def generate_bicep_parameters(self, apim_config: Dict, kv_config: Dict, api_name_mapping: Dict) -> str:
+        """Generate Bicep deployment parameters in .bicepparam format"""
         metadata = self.contract['contractMetadata']
         
-        params = {
-            "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
-            "contentVersion": "1.0.0.0",
-            "parameters": {
-                "apim": {"value": apim_config},
-                "keyVault": {"value": kv_config},
-                "useCase": {
-                    "value": {
-                        "businessUnit": metadata['businessUnit'],
-                        "useCaseName": metadata['agentName'],
-                        "environment": metadata['environment']
-                    }
-                },
-                "existingServices": {"value": existing_services},
-                "services": {
-                    "value": [
-                        {
-                            "code": "OAI",
-                            "endpointSecretName": "AzureOpenAI-Endpoint",
-                            "apiKeySecretName": "AzureOpenAI-Key",
-                            "policyXml": ""  # Will be filled from generated policy file
-                        }
-                    ]
-                },
-                "productTerms": {
-                    "value": f"Agent Access Contract for {metadata['agentName']} in {metadata['businessUnit']}"
-                }
-            }
-        }
+        bicepparam = f"""using '../main.bicep'
+
+// ============================================================================
+// Agent Access Contract: {metadata['agentName']} ({metadata['businessUnit']})
+// ============================================================================
+// Auto-generated from Agent Access Contract Request
+// Generated on: {self._get_timestamp()}
+// ============================================================================
+
+// Target APIM instance where APIs are published
+param apim = {{
+  subscriptionId: '{apim_config['subscriptionId']}'
+  resourceGroupName: '{apim_config['resourceGroupName']}'
+  name: '{apim_config['name']}'
+}}
+
+// Target Key Vault for storing endpoint URLs and API keys
+param keyVault = {{
+  subscriptionId: '{kv_config['subscriptionId']}'
+  resourceGroupName: '{kv_config['resourceGroupName']}'
+  name: '{kv_config['name']}'
+}}
+
+// Whether to store secrets in Key Vault (true) or output them directly (false)
+param useTargetAzureKeyVault = true
+
+// Use case identification
+param useCase = {{
+  businessUnit: '{metadata['businessUnit']}'
+  useCaseName: '{metadata['agentName']}'
+  environment: '{metadata['environment']}'
+}}
+
+// Mapping of service codes to their API names in APIM
+param apiNameMapping = {{
+  OAI: {self._format_array(api_name_mapping.get('OAI', []))}
+}}
+
+// Services required for this use case with generated policy
+param services = [
+  {{
+    code: 'OAI'
+    endpointSecretName: 'AzureOpenAI-Endpoint'
+    apiKeySecretName: 'AzureOpenAI-Key'
+    policyXmlPath: '{metadata['agentName']}-{metadata['environment']}-policy.xml'
+  }}
+]
+
+// Product terms
+param productTerms = 'Agent Access Contract for {metadata['agentName']} in {metadata['businessUnit']}'
+"""
         
-        return params
+        return bicepparam
+    
+    def _get_timestamp(self) -> str:
+        """Get current timestamp"""
+        from datetime import datetime
+        return datetime.now().isoformat()
+    
+    def _format_array(self, items: List[str]) -> str:
+        """Format array for Bicep"""
+        if not items:
+            return "[\n    'azure-openai-service-api'\n  ]"
+        formatted_items = [f"    '{item}'" for item in items]
+        return "[\n" + ",\n".join(formatted_items) + "\n  ]"
 
 
 def validate_contract_request(contract: Dict) -> List[str]:
@@ -420,42 +454,38 @@ def main():
     env = contract['contractMetadata']['environment']
     
     policy_output = Path(args.policy_output) if args.policy_output else output_dir / f'{agent_name}-{env}-policy.xml'
-    params_output = Path(args.params_output) if args.params_output else output_dir / f'{agent_name}-{env}.parameters.json'
+    params_output = Path(args.params_output) if args.params_output else output_dir / f'{agent_name}-{env}.bicepparam'
     
     # Write policy XML
     policy_output.write_text(policy_xml)
     print(f"✓ Generated policy XML: {policy_output}")
     
-    # Generate parameter template (user needs to fill in APIM/KV details)
-    params = processor.generate_bicep_parameters(
+    # Generate bicepparam template (user needs to fill in APIM/KV details)
+    bicepparam = processor.generate_bicep_parameters(
         apim_config={
-            "subscriptionId": "<sub-guid>",
-            "resourceGroupName": "<apim-rg>",
-            "name": "<apim-name>"
+            "subscriptionId": "00000000-0000-0000-0000-000000000000",
+            "resourceGroupName": "rg-apim-ai-gateway",
+            "name": "apim-ai-gateway"
         },
         kv_config={
-            "subscriptionId": "<sub-guid>",
-            "resourceGroupName": "<kv-rg>",
-            "name": "<kv-name>"
+            "subscriptionId": "00000000-0000-0000-0000-000000000000",
+            "resourceGroupName": "rg-key-vault",
+            "name": "kv-secrets"
         },
-        existing_services={
-            "OAI": {
-                "apiResourceIds": [
-                    "/subscriptions/<sub-guid>/resourceGroups/<apim-rg>/providers/Microsoft.ApiManagement/service/<apim-name>/apis/azure-openai-service-api"
-                ]
-            }
+        api_name_mapping={
+            "OAI": [
+                "azure-openai-service-api"
+            ]
         }
     )
     
-    with open(params_output, 'w') as f:
-        json.dump(params, f, indent=2)
+    params_output.write_text(bicepparam)
     
     print(f"✓ Generated parameters file: {params_output}")
     print(f"\nNext steps:")
     print(f"1. Review the generated policy XML: {policy_output}")
-    print(f"2. Update the parameters file with your APIM and Key Vault details: {params_output}")
-    print(f"3. Add the generated policy XML content to the policyXml field in the parameters file")
-    print(f"4. Deploy using: az deployment sub create --template-file infra/usecase-onboarding/main.bicep --parameters @{params_output}")
+    print(f"2. Update the bicepparam file with your APIM and Key Vault details: {params_output}")
+    print(f"3. Deploy using: az deployment sub create --template-file bicep/infra/citadel-access-contracts/base-access-contract-request/main.bicep --parameters {params_output}")
 
 
 if __name__ == '__main__':

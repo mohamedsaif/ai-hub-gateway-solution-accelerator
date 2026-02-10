@@ -10,7 +10,7 @@
 //   3. Deploy using this Bicep file with the generated parameters:
 //      az deployment sub create --template-file main.bicep --parameters @generated/HRAgent-DEV.parameters.json
 //
-// This delegates to the standard usecase-onboarding infrastructure
+// This delegates to the Citadel Access Contracts infrastructure
 
 targetScope = 'subscription'
 
@@ -20,11 +20,14 @@ param apim object
 @description('Target Key Vault for storing endpoint and API key secrets')
 param keyVault object
 
+@description('Whether to use Azure Key Vault for storing secrets')
+param useTargetAzureKeyVault bool = true
+
 @description('Use case descriptor')
 param useCase object
 
-@description('Catalog of existing AI services in APIM')
-param existingServices object
+@description('Map of service codes to their API names in APIM')
+param apiNameMapping object
 
 @description('Services to onboard with generated policy')
 param services array
@@ -32,16 +35,40 @@ param services array
 @description('Product terms')
 param productTerms string = ''
 
-// Deploy using existing usecase-onboarding infrastructure
+@description('Whether to create Azure AI Foundry connection')
+param useTargetFoundry bool = false
+
+@description('Azure AI Foundry configuration')
+param foundry object = {
+  subscriptionId: ''
+  resourceGroupName: ''
+  accountName: ''
+  projectName: ''
+}
+
+@description('Foundry connection configuration options')
+param foundryConfig object = {
+  connectionNamePrefix: ''
+  deploymentInPath: 'false'
+  isSharedToAll: false
+  inferenceAPIVersion: ''
+  deploymentAPIVersion: ''
+}
+
+// Deploy using Citadel Access Contracts infrastructure
 module onboarding '../main.bicep' = {
   name: 'agent-contract-${useCase.useCaseName}-${useCase.environment}'
   params: {
     apim: apim
     keyVault: keyVault
+    useTargetAzureKeyVault: useTargetAzureKeyVault
     useCase: useCase
-    existingServices: existingServices
+    apiNameMapping: apiNameMapping
     services: services
     productTerms: productTerms
+    useTargetFoundry: useTargetFoundry
+    foundry: foundry
+    foundryConfig: foundryConfig
   }
 }
 
