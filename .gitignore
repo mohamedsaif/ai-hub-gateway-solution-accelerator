@@ -414,3 +414,8 @@ local/**/*
 **/.vscode
 **/*.local.parameters.json
 infra/usecase-onboarding/samples/financial-assistant-usecase-local.sh
+
+# Bicep build artifacts (generated JSON files from .bicep/.bicepparam builds)
+infra/main.json
+infra/**/main.json
+
