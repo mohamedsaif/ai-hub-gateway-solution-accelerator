@@ -374,6 +374,60 @@ param entraClientId string = ''
 @description('Audience value for Microsoft Entra ID authentication (only used when entraAuth is true).')
 param entraAudience string = '' 
 
+//
+// API DIAGNOSTICS PARAMETERS - Log settings for LLM inference APIs
+//
+@description('Application Insights diagnostics settings for LLM inference APIs.')
+param apiDiagnosticsAppInsights object = {
+  headers: [ 'Content-type', 'User-agent', 'x-ms-region', 'x-ratelimit-remaining-tokens', 'x-ratelimit-remaining-requests' ]
+  body: {
+    bytes: 8192
+  }
+}
+
+@description('Azure Monitor diagnostics settings for LLM inference APIs.')
+param apiDiagnosticsAzureMonitor object = {
+  frontend: {
+    request: {
+      headers: []
+      body: {
+        bytes: 0
+      }
+    }
+    response: {
+      headers: []
+      body: {
+        bytes: 0
+      }
+    }
+  }
+  backend: {
+    request: {
+      headers: []
+      body: {
+        bytes: 0
+      }
+    }
+    response: {
+      headers: []
+      body: {
+        bytes: 0
+      }
+    }
+  }
+  largeLanguageModel: {
+    logs: 'enabled'
+    requests: {
+      messages: 'all'
+      maxSizeInBytes: 262144
+    }
+    responses: {
+      messages: 'all'
+      maxSizeInBytes: 262144
+    }
+  }
+}
+
 // Load abbreviations from JSON file
 var abbrs = loadJsonContent('./abbreviations.json')
 // Generate a unique token for resources
@@ -656,6 +710,8 @@ module apim './modules/apim/apim.bicep' = {
     privateEndpointSubnetId: useExistingVnet ? vnetExisting.outputs.privateEndpointSubnetId : vnet.outputs.privateEndpointSubnetId
     dnsZoneRG: !useExistingVnet ? resourceGroup.name : dnsZoneRG
     dnsSubscriptionId: !empty(dnsSubscriptionId) ? dnsSubscriptionId : subscription().subscriptionId
+    apiDiagnosticsAppInsights: apiDiagnosticsAppInsights
+    apiDiagnosticsAzureMonitor: apiDiagnosticsAzureMonitor
   }
   dependsOn: [
     vnet

@@ -38,6 +38,55 @@ param enablePIIAnonymization bool = true
 param contentSafetyServiceUrl string
 param aiLanguageServiceUrl string
 
+// API Diagnostics Settings
+param apiDiagnosticsAppInsights object = {
+  headers: [ 'Content-type', 'User-agent', 'x-ms-region', 'x-ratelimit-remaining-tokens', 'x-ratelimit-remaining-requests' ]
+  body: {
+    bytes: 8192
+  }
+}
+
+param apiDiagnosticsAzureMonitor object = {
+  frontend: {
+    request: {
+      headers: []
+      body: {
+        bytes: 0
+      }
+    }
+    response: {
+      headers: []
+      body: {
+        bytes: 0
+      }
+    }
+  }
+  backend: {
+    request: {
+      headers: []
+      body: {
+        bytes: 0
+      }
+    }
+    response: {
+      headers: []
+      body: {
+        bytes: 0
+      }
+    }
+  }
+  largeLanguageModel: {
+    logs: 'enabled'
+    requests: {
+      messages: 'all'
+      maxSizeInBytes: 262144
+    }
+    responses: {
+      messages: 'all'
+      maxSizeInBytes: 262144
+    }
+  }
+}
 
 // Networking
 param apimNetworkType string = 'External'
@@ -806,6 +855,144 @@ resource apimAppInsights 'Microsoft.ApiManagement/service/diagnostics@2022-08-01
       }
     }
   }
+}
+
+// Reference to Azure OpenAI API for diagnostics
+resource openAiApi 'Microsoft.ApiManagement/service/apis@2022-08-01' existing = {
+  name: 'azure-openai-service-api'
+  parent: apimService
+}
+
+// Reference to AI Model Inference API for diagnostics
+resource aiModelInferenceApi 'Microsoft.ApiManagement/service/apis@2022-08-01' existing = if (enableAIModelInference) {
+  name: 'ai-model-inference-api'
+  parent: apimService
+}
+
+// API-level diagnostics for Azure OpenAI API with Application Insights
+resource openAiApiDiagnosticsAppInsights 'Microsoft.ApiManagement/service/apis/diagnostics@2022-08-01' = {
+  name: 'applicationinsights'
+  parent: openAiApi
+  properties: {
+    alwaysLog: 'allErrors'
+    httpCorrelationProtocol: 'Legacy'
+    verbosity: 'information'
+    logClientIp: true
+    loggerId: apimLogger.id
+    metrics: true
+    sampling: {
+      samplingType: 'fixed'
+      percentage: 100
+    }
+    frontend: {
+      request: {
+        headers: apiDiagnosticsAppInsights.headers
+        body: apiDiagnosticsAppInsights.body
+      }
+      response: {
+        headers: apiDiagnosticsAppInsights.headers
+        body: apiDiagnosticsAppInsights.body
+      }
+    }
+    backend: {
+      request: {
+        headers: apiDiagnosticsAppInsights.headers
+        body: apiDiagnosticsAppInsights.body
+      }
+      response: {
+        headers: apiDiagnosticsAppInsights.headers
+        body: apiDiagnosticsAppInsights.body
+      }
+    }
+  }
+  dependsOn: [
+    apimOpenaiApi
+  ]
+}
+
+// API-level diagnostics for Azure OpenAI API with Azure Monitor
+resource openAiApiDiagnosticsAzureMonitor 'Microsoft.ApiManagement/service/apis/diagnostics@2024-06-01-preview' = {
+  name: 'azuremonitor'
+  parent: openAiApi
+  properties: {
+    alwaysLog: 'allErrors'
+    verbosity: 'information'
+    logClientIp: true
+    metrics: true
+    sampling: {
+      samplingType: 'fixed'
+      percentage: 100
+    }
+    frontend: apiDiagnosticsAzureMonitor.frontend
+    backend: apiDiagnosticsAzureMonitor.backend
+    largeLanguageModel: apiDiagnosticsAzureMonitor.largeLanguageModel
+  }
+  dependsOn: [
+    apimOpenaiApi
+  ]
+}
+
+// API-level diagnostics for AI Model Inference API with Application Insights
+resource aiModelInferenceApiDiagnosticsAppInsights 'Microsoft.ApiManagement/service/apis/diagnostics@2022-08-01' = if (enableAIModelInference) {
+  name: 'applicationinsights'
+  parent: aiModelInferenceApi
+  properties: {
+    alwaysLog: 'allErrors'
+    httpCorrelationProtocol: 'Legacy'
+    verbosity: 'information'
+    logClientIp: true
+    loggerId: apimLogger.id
+    metrics: true
+    sampling: {
+      samplingType: 'fixed'
+      percentage: 100
+    }
+    frontend: {
+      request: {
+        headers: apiDiagnosticsAppInsights.headers
+        body: apiDiagnosticsAppInsights.body
+      }
+      response: {
+        headers: apiDiagnosticsAppInsights.headers
+        body: apiDiagnosticsAppInsights.body
+      }
+    }
+    backend: {
+      request: {
+        headers: apiDiagnosticsAppInsights.headers
+        body: apiDiagnosticsAppInsights.body
+      }
+      response: {
+        headers: apiDiagnosticsAppInsights.headers
+        body: apiDiagnosticsAppInsights.body
+      }
+    }
+  }
+  dependsOn: [
+    apimAiModelInferenceApi
+  ]
+}
+
+// API-level diagnostics for AI Model Inference API with Azure Monitor
+resource aiModelInferenceApiDiagnosticsAzureMonitor 'Microsoft.ApiManagement/service/apis/diagnostics@2024-06-01-preview' = if (enableAIModelInference) {
+  name: 'azuremonitor'
+  parent: aiModelInferenceApi
+  properties: {
+    alwaysLog: 'allErrors'
+    verbosity: 'information'
+    logClientIp: true
+    metrics: true
+    sampling: {
+      samplingType: 'fixed'
+      percentage: 100
+    }
+    frontend: apiDiagnosticsAzureMonitor.frontend
+    backend: apiDiagnosticsAzureMonitor.backend
+    largeLanguageModel: apiDiagnosticsAzureMonitor.largeLanguageModel
+  }
+  dependsOn: [
+    apimAiModelInferenceApi
+  ]
 }
 
 resource ehUsageLogger 'Microsoft.ApiManagement/service/loggers@2022-08-01' = {
