@@ -23,6 +23,8 @@ param deploymentCapacity = int(readEnvironmentVariable('OPENAI_CAPACITY', '30'))
 
 // Application Insights diagnostics settings for LLM inference APIs
 // - headers: Array of HTTP headers to log (e.g., 'Content-type', 'User-agent', rate limit headers)
+//   Note: Headers listed here that don't exist in a request/response are safely ignored
+//   SECURITY: Never include sensitive headers like 'Authorization', 'api-key', or 'Ocp-Apim-Subscription-Key'
 // - body.bytes: Number of bytes of request/response body to log (0 = no body logging, 8192 = 8KB)
 // Example: To log more headers, add them to the headers array below
 // Example: To increase body logging, change bytes to a higher value (max depends on your needs)

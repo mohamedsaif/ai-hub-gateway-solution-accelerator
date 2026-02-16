@@ -31,7 +31,9 @@ param apiDiagnosticsAppInsights = {
 - `headers`: Array of HTTP header names to log
   - Common headers include: `Content-type`, `User-agent`, `x-ms-region`
   - Rate limit headers: `x-ratelimit-remaining-tokens`, `x-ratelimit-remaining-requests`
-  - To log all headers, include additional header names in the array
+  - Headers that don't exist in a request/response are safely ignored
+  - **SECURITY WARNING**: Never include sensitive headers: `Authorization`, `api-key`, `Ocp-Apim-Subscription-Key`
+  - To log additional headers, include their names in the array
   
 - `body.bytes`: Number of bytes of request/response body to log
   - `0` = No body logging (only headers)
@@ -242,6 +244,28 @@ param apiDiagnosticsAzureMonitor = {
   }
 }
 ```
+
+### Scenario 4: Safe Header Configuration (Defensive Approach)
+
+Only log headers that are explicitly safe and never contain credentials:
+
+```bicep
+param apiDiagnosticsAppInsights = {
+  // SAFE headers that never contain credentials:
+  // - Content-type: Media type information
+  // - User-agent: Client application info
+  // - x-ms-region: Azure region
+  // - x-ratelimit-*: Rate limiting information
+  // 
+  // NEVER include: Authorization, api-key, Ocp-Apim-Subscription-Key
+  headers: [ 'Content-type', 'User-agent', 'x-ms-region', 'x-ratelimit-remaining-tokens', 'x-ratelimit-remaining-requests' ]
+  body: {
+    bytes: 8192
+  }
+}
+```
+
+**Note**: Headers that don't exist in a particular request/response are safely ignored by APIM during logging.
 
 ## Deployment
 
