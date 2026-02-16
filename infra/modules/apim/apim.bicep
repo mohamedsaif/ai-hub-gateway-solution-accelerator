@@ -108,6 +108,10 @@ var openAiApiClientNamedValue = 'client-id'
 var openAiApiTenantNamedValue = 'tenant-id'
 var openAiApiAudienceNamedValue = 'audience'
 
+// API names for consistency
+var openAiApiName = 'azure-openai-service-api'
+var aiModelInferenceApiName = 'ai-model-inference-api'
+
 var apiManagementMinApiVersion = '2021-08-01'
 var apiManagementMinApiVersionV2 = '2024-05-01'
 
@@ -206,7 +210,7 @@ module apimOpenaiApi './api.bicep' = {
   name: 'azure-openai-service-api'
   params: {
     serviceName: apimService.name
-    apiName: 'azure-openai-service-api'
+    apiName: openAiApiName
     path: 'openai'
     apiRevision: '1'
     apiDispalyName: 'Azure OpenAI API'
@@ -281,7 +285,7 @@ module apimAiModelInferenceApi './api.bicep' = if (enableAIModelInference) {
   name: 'ai-model-inference-api'
   params: {
     serviceName: apimService.name
-    apiName: 'ai-model-inference-api'
+    apiName: aiModelInferenceApiName
     path: 'models'
     apiRevision: '1'
     apiDispalyName: 'AI Model Inference API'
@@ -859,13 +863,13 @@ resource apimAppInsights 'Microsoft.ApiManagement/service/diagnostics@2022-08-01
 
 // Reference to Azure OpenAI API for diagnostics
 resource openAiApi 'Microsoft.ApiManagement/service/apis@2022-08-01' existing = {
-  name: 'azure-openai-service-api'
+  name: openAiApiName
   parent: apimService
 }
 
 // Reference to AI Model Inference API for diagnostics
 resource aiModelInferenceApi 'Microsoft.ApiManagement/service/apis@2022-08-01' existing = if (enableAIModelInference) {
-  name: 'ai-model-inference-api'
+  name: aiModelInferenceApiName
   parent: apimService
 }
 
