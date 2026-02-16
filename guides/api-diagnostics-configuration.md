@@ -132,7 +132,7 @@ Log everything for detailed debugging and analysis:
 
 ```bicep
 param apiDiagnosticsAppInsights = {
-  headers: [ 'Content-type', 'User-agent', 'x-ms-region', 'x-ratelimit-remaining-tokens', 'x-ratelimit-remaining-requests', 'Authorization' ]
+  headers: [ 'Content-type', 'User-agent', 'x-ms-region', 'x-ratelimit-remaining-tokens', 'x-ratelimit-remaining-requests' ]
   body: {
     bytes: 16384  // 16KB
   }
@@ -304,11 +304,13 @@ ApiManagementGatewayLogs
 
 ## Security Considerations
 
-- **API Keys**: Avoid logging `Ocp-Apim-Subscription-Key` or `api-key` headers
-- **Authorization Tokens**: Don't log `Authorization` headers in production
+- **API Keys**: Never log `Ocp-Apim-Subscription-Key` or `api-key` headers
+- **Authorization Tokens**: Never log `Authorization` headers in any environment (development, testing, or production)
 - **User Data**: Be aware that prompts and completions may contain sensitive user data
 - **Retention**: Configure appropriate log retention periods based on compliance requirements
 - **Access Control**: Ensure only authorized personnel can access diagnostic logs
+
+> **Security Warning**: Authorization tokens, API keys, and subscription keys should never be logged as they could be exposed to unauthorized users and compromise your system security.
 
 ## Troubleshooting
 
