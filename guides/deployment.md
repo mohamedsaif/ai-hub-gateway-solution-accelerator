@@ -42,6 +42,85 @@ Application Insights is a critical component of the AI Hub Gateway Landing Zone,
 
 To deploy Application Insights, you can use the following guide: [How to integrate Azure API Management with Azure Application Insights](https://azure.github.io/apim-lab/apim-lab/6-analytics-monitoring/analytics-monitoring-6-2-application-insights.html) 
 
+#### Configuring API Diagnostics for LLM Inference APIs
+
+The solution provides configurable diagnostics for LLM inference APIs (Azure OpenAI API and AI Model Inference API) through two complementary mechanisms:
+
+##### 1. Application Insights Diagnostics
+
+Controls what headers and body content are logged to Application Insights for detailed troubleshooting.
+
+**Default Configuration:**
+```bicep
+apiDiagnosticsAppInsights = {
+  headers: [ 'Content-type', 'User-agent', 'x-ms-region', 
+             'x-ratelimit-remaining-tokens', 'x-ratelimit-remaining-requests' ]
+  body: {
+    bytes: 8192  // Log up to 8KB of request/response body
+  }
+}
+```
+
+**Key Settings:**
+- `headers`: Array of HTTP headers to log (non-existent headers are safely ignored)
+- `body.bytes`: Number of bytes to log from request/response bodies
+  - `0` = No body logging (headers only)
+  - `8192` = 8KB (default) - suitable for most scenarios
+  - Higher values for larger payloads (increases storage costs)
+
+> **Security Note**: Never include sensitive headers like `Authorization`, `api-key`, or `Ocp-Apim-Subscription-Key` in the headers array.
+
+##### 2. Azure Monitor Diagnostics (LLM-Specific)
+
+Provides specialized observability for LLM interactions, including prompt and completion logging.
+
+**Default Configuration:**
+```bicep
+apiDiagnosticsAzureMonitor = {
+  frontend: {
+    request: { headers: [], body: { bytes: 0 } }
+    response: { headers: [], body: { bytes: 0 } }
+  }
+  backend: {
+    request: { headers: [], body: { bytes: 0 } }
+    response: { headers: [], body: { bytes: 0 } }
+  }
+  largeLanguageModel: {
+    logs: 'enabled'              // Enable LLM-specific logging
+    requests: {
+      messages: 'all'             // Log all prompts
+      maxSizeInBytes: 262144      // 256KB max prompt size
+    }
+    responses: {
+      messages: 'all'             // Log all completions
+      maxSizeInBytes: 262144      // 256KB max completion size
+    }
+  }
+}
+```
+
+**Key Settings:**
+- `frontend`/`backend`: Control logging between client↔gateway and gateway↔backend
+- `largeLanguageModel.logs`: Enable/disable LLM logging (`'enabled'` or `'disabled'`)
+- `largeLanguageModel.requests.messages`: Prompt logging mode
+  - `'all'` = Log all prompts (default)
+  - `'none'` = Don't log prompts
+  - `'sample'` = Log a sample of prompts
+- `largeLanguageModel.responses.messages`: Completion logging mode (same options as requests)
+- `maxSizeInBytes`: Maximum content size to log (default: 256KB)
+
+**Configuration Location:**
+
+These settings can be customized in `infra/main.bicepparam` or overridden during deployment via the `main.bicep` parameters.
+
+**Common Scenarios:**
+
+- **Development**: Use default settings for maximum observability
+- **Production (Cost-Optimized)**: Set `body.bytes: 0` and use `messages: 'sample'`
+- **Compliance/Audit**: Keep defaults but increase `maxSizeInBytes` if needed
+
+For detailed configuration examples and security best practices, see the [API Diagnostics Configuration Guide](./api-diagnostics-configuration.md).
+
 ### Event Hub
 
 Event Hub is used to stream usage and charge-back data to target data and charge back platforms.
