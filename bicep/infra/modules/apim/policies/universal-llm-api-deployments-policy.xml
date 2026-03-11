@@ -4,8 +4,75 @@
         <!-- CORS Configuration for AI Foundry Compatibility -->
         <include-fragment fragment-id="ai-foundry-compatibility" />
         
-        <!-- Get deployments using Citadel on-boarded backends -->
-        <include-fragment fragment-id="get-available-models" />
+        <!-- Load and cache metadata configuration -->
+        <include-fragment fragment-id="metadata-config" />
+        <include-fragment fragment-id="central-cache-manager" />
+
+        <!-- Build deployment list from config-models, preserving rich metadata format -->
+        <set-variable name="availableFilteredModels" value="@{
+            var models = context.Variables.GetValueOrDefault<JObject>("config-models");
+            if (models == null) {
+                return "[]";
+            }
+
+            // Get allowedModels filter from product policy
+            var allowedModelsStr = context.Variables.ContainsKey("allowedModels")
+                ? (string)context.Variables["allowedModels"]
+                : "";
+
+            HashSet<string> allowedSet = null;
+            if (!String.IsNullOrWhiteSpace(allowedModelsStr)) {
+                allowedSet = new HashSet<string>(
+                    allowedModelsStr.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                                    .Select(m => m.Trim()),
+                    StringComparer.OrdinalIgnoreCase
+                );
+            }
+
+            var deployments = new JArray();
+            var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var prop in models.Properties()) {
+                var modelName = prop.Name;
+
+                // Skip duplicates
+                if (seenNames.Contains(modelName)) continue;
+                seenNames.Add(modelName);
+
+                // Apply allowedModels filter
+                if (allowedSet != null && !allowedSet.Contains(modelName)) continue;
+
+                var modelConfig = (JObject)prop.Value;
+                var backend = modelConfig["backend"]?.ToString() ?? "";
+                var poolType = modelConfig["pool-type"]?.ToString() ?? "azure-openai";
+                var sku = modelConfig["sku"]?.ToString() ?? "Standard";
+                var capacity = modelConfig["capacity"]?.ToString() ?? "100";
+                var modelFormat = modelConfig["modelFormat"]?.ToString() ?? "OpenAI";
+                var modelVersion = modelConfig["modelVersion"]?.ToString() ?? "1";
+                var retirementDate = modelConfig["retirementDate"]?.ToString();
+
+                var deployment = new JObject()
+                {
+                    { "id", backend },
+                    { "type", poolType },
+                    { "name", modelName },
+                    { "sku", new JObject() { { "name", sku }, { "capacity", Int32.Parse(capacity) } } },
+                    { "properties", new JObject() {
+                        { "model", new JObject() { { "format", modelFormat }, { "name", modelName }, { "version", modelVersion } } },
+                        { "capabilities", new JObject() { { "chatCompletion", "true" } } },
+                        { "provisioningState", "Succeeded" }
+                    }}
+                };
+
+                if (!String.IsNullOrEmpty(retirementDate)) {
+                    ((JObject)deployment["properties"])["retirementDate"] = retirementDate;
+                }
+
+                deployments.Add(deployment);
+            }
+
+            return deployments.ToString();
+        }" />
 
         <!-- Return filtered list of available models -->
         <return-response>

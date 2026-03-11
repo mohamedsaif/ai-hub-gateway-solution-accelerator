@@ -1,9 +1,15 @@
 <fragment>
-    <!-- AAD Authorization -->
-    <!-- Enable AAD is named value set to true -->
+    <!--
+        Entra ID (AAD) Authorization Fragment
+        Supports two auth modes:
+        1. Global toggle: {{entra-auth}} named value enables JWT validation for all products
+        2. Per-product toggle: jwt-auth-required context variable enables JWT for specific products
+        When enabled, validates JWT bearer tokens against Entra ID with configured tenant, audience, and client-id.
+    -->
     <set-variable name="entra-validate" value="{{entra-auth}}" />
     <choose>
-        <when condition="@(context.Variables.GetValueOrDefault("entra-auth") == "true")">
+        <!-- Check global toggle OR per-product jwt-auth-required variable -->
+        <when condition="@(context.Variables.GetValueOrDefault<string>("entra-validate", "false") == "true" || context.Variables.GetValueOrDefault<string>("jwt-auth-required", "false") == "true")">
             <validate-jwt header-name="Authorization" failed-validation-httpcode="401"
                 failed-validation-error-message="Unauthorized" require-expiration-time="true"
                 require-scheme="Bearer" require-signed-tokens="true">

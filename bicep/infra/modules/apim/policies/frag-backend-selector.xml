@@ -1,0 +1,245 @@
+<!--
+====================================================================================================
+Backend Selector Fragment
+====================================================================================================
+
+SUMMARY:
+    Selects the appropriate backend pool based on model, API type, and RBAC permissions.
+    Combines UAIG model-based routing with AI Hub Gateway's backend pool access control.
+    Configures authentication and backend service for the selected pool.
+
+ROUTING LOGIC:
+    1. Look up backend from api-type override (config-api-types[api-type].backend)
+    2. If no api-type override, look up backend from model config (config-models[model-id].backend)
+    3. Apply RBAC filtering: check selected backend against allowedBackendPools
+    4. If RBAC blocks the backend, fall back to defaultBackendPool
+    5. If no match found, return appropriate error
+
+AUTHENTICATION:
+    - azure-openai: Managed identity token for cognitiveservices.azure.com
+    - ai-foundry: Managed identity token for cognitiveservices.azure.com
+    - external: Authentication handled by backend credentials configuration (no headers set)
+
+INPUT VARIABLES:
+    - api-type: Detected API type from request-processor
+    - model-id: Extracted model identifier from request-processor
+    - config-models: Models configuration from central-cache-manager
+    - config-api-types: API types configuration from central-cache-manager
+    - allowedBackendPools: Comma-separated allowed pool IDs from product policy (empty = all allowed)
+    - defaultBackendPool: Default backend pool fallback from product policy (empty = error on no match)
+
+OUTPUT VARIABLES:
+    - selected-backend: Selected backend pool name
+    - targetBackendPool: Alias for selected-backend (backward compatibility)
+    - targetPoolType: Type of the selected backend pool (azure-openai|ai-foundry|external)
+
+DOWNSTREAM CONSUMERS:
+    - path-builder fragment: Uses targetPoolType for path construction
+    - set-llm-usage fragment: Uses selected-backend for attribution
+    - diagnostic-headers fragment: Uses selected-backend for debug headers
+
+UPSTREAM DEPENDENCIES:
+    - request-processor fragment: Provides api-type, model-id
+    - central-cache-manager fragment: Provides config-models, config-api-types
+    - Product policy: Provides allowedBackendPools, defaultBackendPool
+====================================================================================================
+-->
+<fragment>
+    <!-- Select backend: api-type override > model backend > default > error -->
+    <set-variable name="selected-backend" value="@{
+        var apiType = context.Variables.GetValueOrDefault<string>("api-type", "openai");
+        var modelId = context.Variables.GetValueOrDefault<string>("model-id", "unknown");
+        var models = context.Variables.GetValueOrDefault<JObject>("config-models");
+        var apiTypes = context.Variables.GetValueOrDefault<JObject>("config-api-types");
+
+        // Skip for non-LLM requests (GET operations like listing models)
+        if (modelId == "non-llm-request" || modelId == "not-applicable") {
+            return "non-llm-request";
+        }
+
+        // 1. Check if api-type has a backend override
+        var apiTypeBackend = apiTypes?[apiType]?["backend"]?.ToString();
+        if (!String.IsNullOrEmpty(apiTypeBackend)) {
+            return apiTypeBackend;
+        }
+
+        // 2. Look up backend from model configuration
+        var modelBackend = models?[modelId]?["backend"]?.ToString();
+        if (!String.IsNullOrEmpty(modelBackend)) {
+            return modelBackend;
+        }
+
+        return String.Empty;
+    }" />
+
+    <!-- Apply RBAC filtering: check if selected backend is in allowedBackendPools -->
+    <set-variable name="selected-backend" value="@{
+        var selectedBackend = context.Variables.GetValueOrDefault<string>("selected-backend", String.Empty);
+
+        // Skip RBAC for non-LLM requests
+        if (selectedBackend == "non-llm-request") {
+            return selectedBackend;
+        }
+
+        // If no backend found, keep empty for error handling below
+        if (String.IsNullOrEmpty(selectedBackend)) {
+            return "ERROR_NO_MODEL";
+        }
+
+        var allowedPools = context.Variables.GetValueOrDefault<string>("allowedBackendPools", String.Empty);
+
+        // Empty allowedBackendPools = all pools allowed (no RBAC restriction)
+        if (String.IsNullOrEmpty(allowedPools)) {
+            return selectedBackend;
+        }
+
+        // Check if selected backend is in the allowed list
+        var allowed = allowedPools.Split(',').Select(s => s.Trim()).Where(s => s.Length > 0);
+        if (allowed.Any(a => a.Equals(selectedBackend, StringComparison.OrdinalIgnoreCase))) {
+            return selectedBackend;
+        }
+
+        // Backend not allowed - try default
+        var defaultPool = context.Variables.GetValueOrDefault<string>("defaultBackendPool", String.Empty);
+        if (!String.IsNullOrEmpty(defaultPool)) {
+            return defaultPool;
+        }
+
+        // No default available - RBAC restriction blocks access
+        return "ERROR_NO_ALLOWED_POOLS";
+    }" />
+
+    <!-- Set backward-compatible alias -->
+    <set-variable name="targetBackendPool" value="@(context.Variables.GetValueOrDefault<string>("selected-backend", String.Empty))" />
+
+    <!-- Error handling for backend selection failures -->
+    <choose>
+        <when condition="@(context.Variables.GetValueOrDefault<string>("selected-backend", String.Empty) == "non-llm-request")">
+            <!-- Non-LLM request - skip backend selection -->
+        </when>
+        <when condition="@(context.Variables.GetValueOrDefault<string>("selected-backend", String.Empty) == "ERROR_NO_MODEL")">
+            <trace source="Backend-Selector-Error" severity="error">
+                <message>@($"UAIG - No backend configured for model {context.Variables.GetValueOrDefault<string>("model-id", "not-set")} with API type {context.Variables.GetValueOrDefault<string>("api-type", "not-set")}")</message>
+            </trace>
+            <return-response>
+                <set-status code="400" reason="Bad Request" />
+                <set-header name="Content-Type" exists-action="override">
+                    <value>application/json</value>
+                </set-header>
+                <set-body>@{
+                    var modelId = context.Variables.GetValueOrDefault<string>("model-id", "unknown");
+                    var models = context.Variables.GetValueOrDefault<JObject>("config-models");
+                    var supportedModels = models != null
+                        ? String.Join(", ", models.Properties().Select(p => p.Name))
+                        : "none";
+                    return new JObject(
+                        new JProperty("error", new JObject(
+                            new JProperty("message", $"Model '{modelId}' is not supported. Supported models: {supportedModels}"),
+                            new JProperty("type", "invalid_request_error"),
+                            new JProperty("code", "unsupported_model"),
+                            new JProperty("param", "model")
+                        ))
+                    ).ToString();
+                }</set-body>
+            </return-response>
+        </when>
+        <when condition="@(context.Variables.GetValueOrDefault<string>("selected-backend", String.Empty) == "ERROR_NO_ALLOWED_POOLS")">
+            <trace source="Backend-Selector-Error" severity="error">
+                <message>@($"UAIG - RBAC restriction: no allowed pools for model {context.Variables.GetValueOrDefault<string>("model-id", "not-set")}")</message>
+            </trace>
+            <return-response>
+                <set-status code="403" reason="Forbidden" />
+                <set-header name="Content-Type" exists-action="override">
+                    <value>application/json</value>
+                </set-header>
+                <set-body>@{
+                    var modelId = context.Variables.GetValueOrDefault<string>("model-id", "unknown");
+                    var allowedPools = context.Variables.GetValueOrDefault<string>("allowedBackendPools", String.Empty);
+                    return new JObject(
+                        new JProperty("error", new JObject(
+                            new JProperty("message", $"Access to model '{modelId}' is not allowed for this client. You do not have access to any backend pools supporting this model."),
+                            new JProperty("type", "access_error"),
+                            new JProperty("code", "backend_pool_access_forbidden"),
+                            new JProperty("allowed_backend_pools", allowedPools)
+                        ))
+                    ).ToString();
+                }</set-body>
+            </return-response>
+        </when>
+    </choose>
+
+    <!-- Determine pool type from config-models -->
+    <set-variable name="targetPoolType" value="@{
+        var selectedBackend = context.Variables.GetValueOrDefault<string>("selected-backend", String.Empty);
+
+        if (selectedBackend == "non-llm-request") {
+            return "non-llm-request";
+        }
+
+        // Look through models to find pool type for the selected backend
+        var models = context.Variables.GetValueOrDefault<JObject>("config-models");
+        if (models != null) {
+            foreach (var prop in models.Properties()) {
+                var modelBackend = prop.Value["backend"]?.ToString();
+                if (modelBackend != null && modelBackend.Equals(selectedBackend, StringComparison.OrdinalIgnoreCase)) {
+                    return prop.Value["pool-type"]?.ToString() ?? "azure-openai";
+                }
+            }
+        }
+
+        // Check api-types for backend type
+        var apiTypes = context.Variables.GetValueOrDefault<JObject>("config-api-types");
+        if (apiTypes != null) {
+            foreach (var prop in apiTypes.Properties()) {
+                var apiTypeBackend = prop.Value["backend"]?.ToString();
+                if (apiTypeBackend != null && apiTypeBackend.Equals(selectedBackend, StringComparison.OrdinalIgnoreCase)) {
+                    return prop.Value["pool-type"]?.ToString() ?? "azure-openai";
+                }
+            }
+        }
+
+        return "azure-openai";
+    }" />
+
+    <!-- Set backend service and authentication (skip for non-LLM requests) -->
+    <choose>
+        <when condition="@(context.Variables.GetValueOrDefault<string>("selected-backend", String.Empty) == "non-llm-request")">
+            <!-- Skip for non-LLM requests -->
+        </when>
+        <when condition="@(context.Variables.GetValueOrDefault<string>("selected-backend", String.Empty).StartsWith("ERROR_"))">
+            <!-- Error state handled above -->
+        </when>
+        <otherwise>
+            <!-- Route request to the selected backend pool -->
+            <set-backend-service backend-id="@(context.Variables.GetValueOrDefault<string>("selected-backend"))" />
+
+            <!-- Apply pool-type-specific authentication -->
+            <choose>
+                <when condition="@{
+                    var poolType = context.Variables.GetValueOrDefault<string>("targetPoolType", String.Empty);
+                    return poolType == "azure-openai" || poolType == "ai-foundry";
+                }">
+                    <!-- Azure-hosted backends: Use managed identity for Cognitive Services -->
+                    <authentication-managed-identity resource="https://cognitiveservices.azure.com" output-token-variable-name="msi-access-token" client-id="{{uami-client-id}}" ignore-error="false" />
+                    <set-header name="Authorization" exists-action="override">
+                        <value>@("Bearer " + (string)context.Variables["msi-access-token"])</value>
+                    </set-header>
+                </when>
+                <when condition="@(context.Variables.GetValueOrDefault<string>("targetPoolType", String.Empty) == "external")">
+                    <!-- External providers: Authentication handled by backend credentials configuration -->
+                </when>
+                <otherwise>
+                    <!-- Default: Use managed identity -->
+                    <authentication-managed-identity resource="https://cognitiveservices.azure.com" output-token-variable-name="msi-access-token" client-id="{{uami-client-id}}" ignore-error="false" />
+                    <set-header name="Authorization" exists-action="override">
+                        <value>@("Bearer " + (string)context.Variables["msi-access-token"])</value>
+                    </set-header>
+                </otherwise>
+            </choose>
+        </otherwise>
+    </choose>
+
+    <trace source="Backend-Selector-Complete" severity="information">
+        <message>@($"UAIG - Backend '{context.Variables.GetValueOrDefault<string>("selected-backend", "not-set")}' (type: {context.Variables.GetValueOrDefault<string>("targetPoolType", "not-set")}) selected for model '{context.Variables.GetValueOrDefault<string>("model-id", "not-set")}' with API type '{context.Variables.GetValueOrDefault<string>("api-type", "not-set")}'")</message>
+    </trace>
+</fragment>

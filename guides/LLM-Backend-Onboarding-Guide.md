@@ -21,12 +21,13 @@ Below is a sample overview of relevant configurations associated with LLM onboar
 ┌─────────────────────────────────────────────────────────────────────┐
 │                          APIM Gateway                               │
 ├─────────────────────────────────────────────────────────────────────┤
-│  Policy Fragments                                                   │
-│  ├── set-backend-pools (dynamic pool routing)                       │
-│  ├── set-backend-authorization (managed identity/API key)           │
-│  ├── set-target-backend-pool (load balancing)                       │
-│  ├── set-llm-requested-model (model extraction)                     │
-│  └── get-available-models (Foundry support)                         │
+│  Policy Fragments (Unified AI Gateway Pipeline)                     │
+│  ├── metadata-config (auto-generated JSON configuration)            │
+│  ├── central-cache-manager (config caching via APIM cache)          │
+│  ├── request-processor (unified model extraction)                   │
+│  ├── backend-selector (routing with RBAC + MI auth)                 │
+│  ├── path-builder (URL rewriting per API type + backend type)       │
+│  └── diagnostic-headers (UAIG-* debug headers)                     │
 ├─────────────────────────────────────────────────────────────────────┤
 │  Backend Pools                                                      │
 │  ├── pool-gpt-4o (multiple backends)                                │
@@ -69,9 +70,9 @@ param llmBackendConfig = [
     endpoint: 'https://aif-kclom7nxzysjg-0.services.ai.azure.com/models'
     authScheme: 'managedIdentity'
     supportedModels: [
-      { name: 'gpt-4o', sku: 'GlobalStandard', capacity: 100, modelFormat: 'OpenAI', modelVersion: '2024-11-20' }
+      { name: 'gpt-4o', sku: 'GlobalStandard', capacity: 100, modelFormat: 'OpenAI', modelVersion: '2024-11-20', tier: 'standard', timeout: 120 }
       { name: 'gpt-4o-mini', sku: 'GlobalStandard', capacity: 100, modelFormat: 'OpenAI', modelVersion: '2024-07-18' }
-      { name: 'DeepSeek-R1', sku: 'GlobalStandard', capacity: 1, modelFormat: 'DeepSeek', modelVersion: '1' }
+      { name: 'DeepSeek-R1', sku: 'GlobalStandard', capacity: 1, modelFormat: 'DeepSeek', modelVersion: '1', tier: 'premium', timeout: 300 }
       { name: 'Phi-4', sku: 'GlobalStandard', capacity: 1, modelFormat: 'Microsoft', modelVersion: '3' }
       { name: 'text-embedding-3-large', sku: 'GlobalStandard', capacity: 100, modelFormat: 'OpenAI', modelVersion: '1' }
     ]
@@ -112,9 +113,25 @@ az deployment sub create --name llm-onboarding-deployment --location REPLACE --t
 | `backendType` | string | Yes | Type: `ai-foundry`, `azure-openai`, or `external` |
 | `endpoint` | string | Yes | Full URL to the backend service |
 | `authScheme` | string | Yes | Authentication: `managedIdentity`, `apiKey`, or `token` |
-| `supportedModels` | array | Yes | List of model names this backend supports |
+| `supportedModels` | array | Yes | List of model configuration objects (see Model Configuration Object below) |
 | `priority` | int | No | Priority for load balancing (lower = higher priority). Used when load balancing across multiple backends |
 | `weight` | int | No | Weight for weighted round-robin (default: 100). Used when load balancing across multiple backends |
+
+### Model Configuration Object
+
+Each entry in `supportedModels` describes a model deployment on the backend:
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `name` | string | Yes | Model deployment name (e.g., `gpt-4o`, `Phi-4`) |
+| `sku` | string | No | SKU tier name (e.g., `GlobalStandard`, `Standard`) |
+| `capacity` | int | No | Provisioned throughput units (TPM / 1000) |
+| `modelFormat` | string | No | Model format identifier (e.g., `OpenAI`, `Microsoft`, `DeepSeek`) |
+| `modelVersion` | string | No | Model version string (e.g., `2024-11-20`, `1`) |
+| `tier` | string | No | Pricing/service tier (e.g., `standard`, `premium`). Defaults to `standard` |
+| `apiVersion` | string | No | Backend API version to use for this model |
+| `inferenceApiVersion` | string | No | Inference API version override |
+| `timeout` | int | No | Request timeout in seconds. Defaults to `120` |
 
 ### Backend types examples
 
@@ -125,7 +142,10 @@ az deployment sub create --name llm-onboarding-deployment --location REPLACE --t
   backendType: 'ai-foundry'
   endpoint: 'https://project.region.models.ai.azure.com'
   authScheme: 'managedIdentity'
-  supportedModels: ['gpt-4o', 'Phi-4']
+  supportedModels: [
+    { name: 'gpt-4o', sku: 'GlobalStandard', capacity: 100, modelFormat: 'OpenAI', modelVersion: '2024-11-20' }
+    { name: 'Phi-4', sku: 'GlobalStandard', capacity: 1, modelFormat: 'Microsoft', modelVersion: '3' }
+  ]
 }
 ```
 
@@ -136,7 +156,10 @@ az deployment sub create --name llm-onboarding-deployment --location REPLACE --t
   backendType: 'azure-openai'
   endpoint: 'https://myopenai.openai.azure.com'
   authScheme: 'managedIdentity'
-  supportedModels: ['gpt-4o', 'text-embedding-ada-002']
+  supportedModels: [
+    { name: 'gpt-4o', sku: 'Standard', capacity: 80, modelFormat: 'OpenAI', modelVersion: '2024-11-20' }
+    { name: 'text-embedding-ada-002', sku: 'Standard', capacity: 120, modelFormat: 'OpenAI', modelVersion: '2' }
+  ]
 }
 ```
 
@@ -147,7 +170,9 @@ az deployment sub create --name llm-onboarding-deployment --location REPLACE --t
   backendType: 'external'
   endpoint: 'https://api.externalprovider.com/v1'
   authScheme: 'apiKey'
-  supportedModels: ['custom-model']
+  supportedModels: [
+    { name: 'custom-model' }
+  ]
 }
 ```
 

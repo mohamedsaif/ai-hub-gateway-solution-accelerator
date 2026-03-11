@@ -1,0 +1,67 @@
+<!--
+====================================================================================================
+Metadata Configuration Fragment
+====================================================================================================
+
+SUMMARY:
+    Provides centralized configuration management for AI models, API routing,
+    and system behavior across the Unified AI Gateway. Acts as the single source of truth for
+    model definitions, backend pool mappings, API type specifications,
+    and cache settings. Auto-generated from llmBackendConfig by Backend Onboarding.
+
+INPUT VARIABLES:
+    - None (this is the base foundational configuration fragment)
+
+OUTPUT VARIABLES:
+    - metadata-config: String - Complete JSON configuration containing all model, routing, and cache settings
+
+DOWNSTREAM CONSUMERS:
+    - central-cache-manager fragment: Processes and caches the configuration for performance optimization
+    - backend-selector fragment: Uses models and api-types sections for routing decisions and backend selection
+    - request-processor fragment: Uses api-types section for API type detection
+    - diagnostic-headers fragment: References model and API information for debug response headers
+
+UPSTREAM DEPENDENCIES:
+    - None (this is the base foundational configuration fragment loaded first)
+-->
+<fragment>
+    <set-variable name="metadata-config" value="@{return @"{
+        'models': {
+            //{metadataConfigModels}
+        },
+        'api-types': {
+            'openai': {
+                'base-path': '/openai',
+                'path-segment': '/deployments',
+                'api-version': '2024-02-15-preview'
+            },
+            'inference': {
+                'base-path': '/models',
+                'path-segment': '/models',
+                'api-version': '2024-05-01-preview'
+            },
+            'responses': {
+                'base-path': '/openai/responses',
+                'path-segment': '/responses',
+                'api-version': '2025-03-01-preview'
+            },
+            'responses-v1': {
+                'base-path': '/openai/v1/responses',
+                'path-segment': '/openai/v1/responses',
+                'api-version': 'v1'
+            },
+            'openai-v1': {
+                'base-path': '/openai/v1',
+                'path-segment': '/deployments',
+                'api-version': 'v1'
+            }
+        },
+        'cache-settings': {
+            'config-version': '1.0.0',
+            'ttl-seconds': 300
+        },
+        'timeout-settings': {
+            'streaming-multiplier': 3
+        }
+    }";}" />
+</fragment>

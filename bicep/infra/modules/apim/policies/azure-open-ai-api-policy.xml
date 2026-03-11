@@ -3,83 +3,46 @@
         <base />
         
         <!--
-            Universal LLM API Policy v2
-            Purpose: Routes requests to appropriate backend pools based on model selection and RBAC permissions
-            
+            Azure OpenAI API Policy
+            Purpose: Routes OpenAI-compatible requests through the shared Unified AI Gateway pipeline
+
             Flow:
-            1. Validate Entra ID authentication (optional, controlled by entra-validate named value)
-            2. Extract and validate model parameter from request payload
-            3. Configure backend pools and routing rules
-            4. Determine target backend pool based on model and permissions
-            5. Set up authentication and route to selected backend
-            6. Configure collecting usage metrics
-            
+            1. Load and cache metadata configuration (models, api-types, cache & timeout settings)
+            2. Process incoming request to extract routing context (api-type, model-id, path)
+            3. Validate Entra ID authentication (if enabled at product or global level)
+            4. Validate model access against product-level allowedModels RBAC
+            5. Select backend pool with RBAC filtering and configure authentication
+            6. Build correct backend URL path based on api-type and pool-type
+            7. Configure collecting usage metrics
+
             Configuration:
-            - Modify allowedBackendPools for RBAC (comma-separated pool IDs, empty = all allowed)
-            - Set defaultBackendPool for unmapped models (empty = return error)
-            - Backend pool definitions are in frag-set-backend-pools fragment
+            - Model RBAC: Set allowedModels in product policy (comma-separated model names)
+            - Pool RBAC: Set allowedBackendPools in product policy (comma-separated pool IDs, empty = all allowed)
+            - Default pool: Set defaultBackendPool in product policy (empty = error on no match)
+            - Backend pool definitions are auto-generated in metadata-config fragment
         -->
         
-        <!-- Step 1: Validate Entra ID authentication (if enabled) -->
-        <include-fragment fragment-id="aad-auth" />
-        
-        <!-- Step 2: Extract and validate model parameter from request -->
-        <include-fragment fragment-id="set-llm-requested-model" />
-        
-        <!-- Step 3: Inject model parameter into request body if not present -->
-        <choose>
-            <when condition="@((string)context.Variables["requestedModel"] != "non-llm-request")">
-                <set-body>@{
-                    var body = context.Request.Body.As<JObject>(preserveContent: true);
-                    string requestedModel = (string)context.Variables["requestedModel"];
-                    
-                    // Only inject model if it doesn't already exist in the body
-                    if (body["model"] == null)
-                    {
-                        body["model"] = requestedModel;
-                    }
-                    
-                    return body.ToString();
-                }</set-body>
-            </when>
-        </choose>
+        <!-- Step 1: Load and cache metadata configuration -->
+        <include-fragment fragment-id="metadata-config" />
+        <include-fragment fragment-id="central-cache-manager" />
 
-        <!-- Step 3.1: capture original API path -->
-         <set-variable name="openAIRewriteTemplate" value="@{
-                string requestedModel = (string)context.Variables["requestedModel"];
-                string path = context.Request.Url.Path.TrimStart('/');
-                return string.Format("openai/{0}", path);
-            }" />
-        
-        <!-- Override api-version query parameter if clients are getting 404 due to mismatched api-version -->
-        <!-- <set-query-parameter name="api-version" exists-action="override">
-            <value>2024-05-01-preview</value>
-        </set-query-parameter> -->
-        
+        <!-- Step 2: Process request to extract routing context -->
+        <include-fragment fragment-id="request-processor" />
+
+        <!-- Step 3: Validate Entra ID authentication (if enabled) -->
+        <include-fragment fragment-id="aad-auth" />
+
         <!-- Remove api-key header to prevent it from being passed to backend endpoints -->
         <set-header name="api-key" exists-action="delete" />
-        
-        <!-- Step 4: Configure RBAC and default routing behavior -->
-        <!-- RBAC: Set allowed backend pools (comma-separated pool IDs, empty = all pools allowed) -->
-        <set-variable name="allowedBackendPools" value="" />
-        
-        <!-- Set default backend pool (empty = return error for unmapped models) -->
-        <set-variable name="defaultBackendPool" value="" />
 
-        <!-- Step 4: Load backend pool configurations -->
-        <include-fragment fragment-id="set-backend-pools" />
+        <!-- Step 4-5: RBAC and backend selection handled by product policy (allowedModels, allowedBackendPools) and backend-selector -->
+        <include-fragment fragment-id="backend-selector" />
 
-        <!-- Step 5: Determine target backend pool based on model and permissions -->
-        <include-fragment fragment-id="set-target-backend-pool" />
-
-        <!-- Step 6: Configure authentication and route to selected backend -->
-        <include-fragment fragment-id="set-backend-authorization" />
+        <!-- Step 6: Build backend URL path -->
+        <include-fragment fragment-id="path-builder" />
 
         <!-- Step 7: Configure collecting usage metrics -->
         <include-fragment fragment-id="set-llm-usage" />
-
-        <!-- Rewrite URL while preserving the original API path -->
-		<rewrite-uri template="@((string)context.Variables["openAIRewriteTemplate"])" copy-unmatched-params="true" />
     </inbound>
     <backend>
         <!--
@@ -97,16 +60,16 @@
     </backend>
     <outbound>
         <base />
+        <!-- Diagnostic headers for troubleshooting -->
+        <include-fragment fragment-id="diagnostic-headers" />
     </outbound>
     <on-error>
         <base />
         <!--
             Error Handling
             Purpose: Pushes custom metrics for errors to enable Azure Monitor alerts
-            
-            Integration: Uses raise-throttling-events fragment to send metrics to monitoring system for 429 responses
         -->
-        
         <include-fragment fragment-id="raise-throttling-events" />
+        <include-fragment fragment-id="diagnostic-headers" />
     </on-error>
 </policies>

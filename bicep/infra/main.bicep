@@ -277,9 +277,6 @@ param enableOpenAIRealtime bool = true
 @description('Enable AI Foundry integration.')
 param enableAIFoundry bool = true
 
-@description('Enable Microsoft Entra ID authentication for API Management.')
-param entraAuth bool = false
-
 @description('Enable API Center for API governance and discovery.')
 param enableAPICenter bool = true
 
@@ -543,13 +540,13 @@ param aiFoundryModelsConfig array = [
 @description('Name of the text embedding model deployment in the primary Microsoft Foundry to be used for APIM semantic caching.')
 param primaryFoundryEmbeddingModelName string = 'text-embedding-3-large'
 
-@description('Microsoft Entra ID tenant ID for authentication (only used when entraAuth is true).')
+@description('Microsoft Entra ID tenant ID for JWT authentication validation.')
 param entraTenantId string = ''
 
-@description('Microsoft Entra ID client ID for authentication (only used when entraAuth is true).')
+@description('Microsoft Entra ID client ID for JWT authentication validation.')
 param entraClientId string = ''
 
-@description('Audience value for Microsoft Entra ID authentication (only used when entraAuth is true).')
+@description('Audience value for Microsoft Entra ID JWT authentication validation.')
 param entraAudience string = '' 
 
 // Load abbreviations from JSON file
@@ -577,6 +574,10 @@ var modelsGroupedByInstance = [for (instance, i) in aiFoundryInstances: {
     modelFormat: model.publisher
     modelVersion: model.version
     retirementDate: model.?retirementDate ?? ''
+    tier: model.?tier ?? 'standard'
+    apiVersion: model.?apiVersion ?? '2024-02-15-preview'
+    inferenceApiVersion: model.?inferenceApiVersion ?? '2024-05-01-preview'
+    timeout: model.?timeout ?? 120
   } : {}), m => !empty(m))
 }]
 
@@ -600,6 +601,10 @@ var modelsGroupedByInstance = [for (instance, i) in aiFoundryInstances: {
  *     - modelFormat: Model format identifier, e.g., 'OpenAI', 'DeepSeek', 'Microsoft' (default: 'OpenAI')
  *     - modelVersion: Version of the model (default: '1')
  *     - retirementDate: (Optional) Retirement date for the model in YYYY-MM-DD format
+ *     - tier: (Optional) Model tier, 'premium' or 'standard' (default: 'standard')
+ *     - apiVersion: (Optional) Azure OpenAI API version (default: '2024-02-15-preview')
+ *     - inferenceApiVersion: (Optional) Inference API version (default: '2024-05-01-preview')
+ *     - timeout: (Optional) Request timeout in seconds (default: 120)
  * - priority: (Optional) 1-5, default 1 (lower = higher priority)
  * - weight: (Optional) 1-1000, default 100 (higher = more traffic)
  * 
@@ -615,10 +620,10 @@ var modelsGroupedByInstance = [for (instance, i) in aiFoundryInstances: {
     endpoint: 'https://aif-REPLACE-0.services.ai.azure.com/models'
     authScheme: 'managedIdentity'
     supportedModels: [
-      { name: 'gpt-4o-mini', sku: 'GlobalStandard', capacity: 100, modelFormat: 'OpenAI', modelVersion: '2024-07-18', retirementDate: '2026-09-30' }
-      { name: 'gpt-4o', sku: 'GlobalStandard', capacity: 100, modelFormat: 'OpenAI', modelVersion: '2024-11-20', retirementDate: '2026-09-30' }
-      { name: 'DeepSeek-R1', sku: 'GlobalStandard', capacity: 1, modelFormat: 'DeepSeek', modelVersion: '1', retirementDate: '2099-12-30' }
-      { name: 'Phi-4', sku: 'GlobalStandard', capacity: 1, modelFormat: 'Microsoft', modelVersion: '3', retirementDate: '2099-12-30' }
+      { name: 'gpt-4o-mini', sku: 'GlobalStandard', capacity: 100, modelFormat: 'OpenAI', modelVersion: '2024-07-18', retirementDate: '2026-09-30', tier: 'standard' }
+      { name: 'gpt-4o', sku: 'GlobalStandard', capacity: 100, modelFormat: 'OpenAI', modelVersion: '2024-11-20', retirementDate: '2026-09-30', tier: 'premium' }
+      { name: 'DeepSeek-R1', sku: 'GlobalStandard', capacity: 1, modelFormat: 'DeepSeek', modelVersion: '1', retirementDate: '2099-12-30', tier: 'standard' }
+      { name: 'Phi-4', sku: 'GlobalStandard', capacity: 1, modelFormat: 'Microsoft', modelVersion: '3', retirementDate: '2099-12-30', tier: 'standard', inferenceApiVersion: '2024-05-01-preview' }
     ]
     priority: 1
     weight: 100
@@ -983,10 +988,9 @@ module apim './modules/apim/apim.bicep' = {
     tags: tags
     applicationInsightsName: monitoring.outputs.apimApplicationInsightsName
     managedIdentityName: apimManagedIdentity.outputs.managedIdentityName
-    entraAuth: entraAuth
-    clientAppId: entraAuth ? entraClientId : null 
-    tenantId: entraAuth ? entraTenantId : null
-    audience: entraAuth ? entraAudience : null
+    clientAppId: !empty(entraClientId) ? entraClientId : 'NA'
+    tenantId: !empty(entraTenantId) ? entraTenantId : tenant().tenantId
+    audience: !empty(entraAudience) ? entraAudience : 'https://cognitiveservices.azure.com/.default'
     eventHubName: eventHub.outputs.eventHubName
     eventHubEndpoint: eventHub.outputs.eventHubEndpoint
     eventHubPIIName: eventHub.outputs.eventHubPIIName

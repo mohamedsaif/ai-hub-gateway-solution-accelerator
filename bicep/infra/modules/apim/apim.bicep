@@ -1,7 +1,6 @@
 param name string
 param location string = resourceGroup().location
 param tags object = {}
-param entraAuth bool = false
 
 @minLength(1)
 param publisherEmail string = 'noreply@microsoft.com'
@@ -15,7 +14,7 @@ param skuCount int = 1
 param applicationInsightsName string
 
 param managedIdentityName string
-param clientAppId string = ' '
+param clientAppId string = 'NA'
 param tenantId string = tenant().tenantId
 param audience string = 'https://cognitiveservices.azure.com/.default'
 param eventHubName string
@@ -133,7 +132,6 @@ var apimPublicNetworkAccess = apimV2PublicNetworkAccess ? 'Enabled' : 'Disabled'
 
 var openAiApiBackendId = 'openai-backend'
 var openAiApiUamiNamedValue = 'uami-client-id'
-var openAiApiEntraNamedValue = 'entra-auth'
 var openAiApiClientNamedValue = 'client-id'
 var openAiApiTenantNamedValue = 'tenant-id'
 var openAiApiAudienceNamedValue = 'audience'
@@ -225,7 +223,7 @@ module apimAiSearchIndexApi './api.bicep' = if (enableAzureAISearch) {
     path: 'search'
     apiRevision: '1'
     apiDispalyName: 'Azure AI Search Index API (index services)'
-    subscriptionRequired: entraAuth ? false:true
+    subscriptionRequired: true
     subscriptionKeyName: 'api-key'
     openApiSpecification: loadTextContent('./ai-search-api/ai-search-index-2024-07-01-api-spec.json')
     apiDescription: 'Azure AI Search Index Client APIs'
@@ -246,7 +244,7 @@ module apimOpenAIRealTimetApi './api.bicep' = if (enableOpenAIRealtime) {
     path: 'openai/realtime'
     apiRevision: '1'
     apiDispalyName: 'Azure OpenAI Realtime API'
-    subscriptionRequired: entraAuth ? false : true
+    subscriptionRequired: true
     subscriptionKeyName: 'api-key'
     openApiSpecification: 'NA'
     apiDescription: 'Access Azure OpenAI Realtime API for real-time voice and text conversion.'
@@ -270,7 +268,7 @@ module apimDocumentIntelligenceLegacy './api.bicep' = if (enableDocumentIntellig
     path: 'formrecognizer'
     apiRevision: '1'
     apiDispalyName: 'Document Intelligence API (Legacy)'
-    subscriptionRequired: entraAuth ? false:true
+    subscriptionRequired: true
     subscriptionKeyName: 'Ocp-Apim-Subscription-Key'
     openApiSpecification: loadTextContent('./doc-intel-api/document-intelligence-2024-11-30-compressed.openapi.yaml')
     apiDescription: 'Uses (/formrecognizer) url path. Extracts content, layout, and structured data from documents.'
@@ -291,7 +289,7 @@ module apimDocumentIntelligence './api.bicep' = if (enableDocumentIntelligence) 
     path: 'documentintelligence'
     apiRevision: '1'
     apiDispalyName: 'Document Intelligence API'
-    subscriptionRequired: entraAuth ? false:true
+    subscriptionRequired: true
     subscriptionKeyName: 'Ocp-Apim-Subscription-Key'
     openApiSpecification: loadTextContent('./doc-intel-api/document-intelligence-2024-11-30-compressed.openapi.yaml')
     apiDescription: 'Uses (/documentintelligence) url path. Extracts content, layout, and structured data from documents.'
@@ -389,7 +387,7 @@ module apiUniversalLLM './inference-api.bicep' = {
     inferenceAPIType: 'AzureAI'
     inferenceAPIDisplayName: 'Universal LLM API'
     inferenceAPIDescription: 'Universal LLM API to route requests to different LLM providers including Azure OpenAI, AI Foundry and 3rd party models.'
-    allowSubscriptionKey: entraAuth ? false:true
+    allowSubscriptionKey: true
     apimLoggerId: apimAzMonitorLogger.id
     policyXml: loadTextContent('./policies/universal-llm-api-policy-v2.xml')
     azureMonitorLogSettings: azureMonitorLogSettings
@@ -412,9 +410,26 @@ module apimOpenaiApi './inference-api.bicep' = {
     inferenceAPIType: 'AzureOpenAI'
     inferenceAPIDisplayName: 'Azure OpenAI API'
     inferenceAPIDescription: 'Azure OpenAI API to route requests to different LLM providers including Azure OpenAI, AI Foundry and 3rd party models.'
-    allowSubscriptionKey: entraAuth ? false:true
+    allowSubscriptionKey: true
     apimLoggerId: apimAzMonitorLogger.id
     policyXml: loadTextContent('./policies/azure-open-ai-api-policy.xml')
+    azureMonitorLogSettings: azureMonitorLogSettings
+    appInsightsLogSettings: appInsightsLogSettings
+  }
+  dependsOn: [
+    policyFragments
+    llmBackends
+    llmBackendPools
+    llmPolicyFragments
+  ]
+}
+
+module unifiedAiGatewayApi './unified-ai-api.bicep' = {
+  name: 'unified-ai-gateway-api'
+  params: {
+    apiManagementName: apimService.name
+    apimLoggerId: apimAzMonitorLogger.id
+    policyXml: loadTextContent('./policies/unified-ai-gateway-api-policy.xml')
     azureMonitorLogSettings: azureMonitorLogSettings
     appInsightsLogSettings: appInsightsLogSettings
   }
@@ -501,6 +516,43 @@ resource openAIDeploymentByNameOperationPolicy 'Microsoft.ApiManagement/service/
   }
 }
 
+// Unified AI Gateway API discovery operations
+resource unifiedAiGatewayApiRef 'Microsoft.ApiManagement/service/apis@2022-08-01' existing = {
+  name: 'unified-ai-gateway-api'
+  parent: apimService
+  dependsOn: [
+    unifiedAiGatewayApi
+  ]
+}
+
+resource unifiedAiDeploymentOperation 'Microsoft.ApiManagement/service/apis/operations@2022-08-01' existing = {
+  name: 'deployments'
+  parent: unifiedAiGatewayApiRef
+}
+
+resource unifiedAiDeploymentByNameOperation 'Microsoft.ApiManagement/service/apis/operations@2022-08-01' existing = {
+  name: 'deployment-by-name'
+  parent: unifiedAiGatewayApiRef
+}
+
+resource unifiedAiDeploymentOperationPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2022-08-01' = {
+  name: 'policy'
+  parent: unifiedAiDeploymentOperation
+  properties: {
+    format: 'rawxml'
+    value: loadTextContent('./policies/universal-llm-api-deployments-policy.xml')
+  }
+}
+
+resource unifiedAiDeploymentByNameOperationPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2022-08-01' = {
+  name: 'policy'
+  parent: unifiedAiDeploymentByNameOperation
+  properties: {
+    format: 'rawxml'
+    value: loadTextContent('./policies/universal-llm-api-deployment-by-name-policy.xml')
+  }
+}
+
 //////////// End of AI Foundry Integration Requirements /////////////
 
 resource aiSearchBackends 'Microsoft.ApiManagement/service/backends@2022-08-01' = [for (aiSearchInstance, i) in aiSearchInstances: if(enableAzureAISearch) {
@@ -547,15 +599,6 @@ resource apimOpenaiApiUamiNamedValue 'Microsoft.ApiManagement/service/namedValue
   }
 }
 
-resource apiopenAiApiEntraNamedValue 'Microsoft.ApiManagement/service/namedValues@2022-08-01' = {
-  name: openAiApiEntraNamedValue
-  parent: apimService
-  properties: {
-    displayName: openAiApiEntraNamedValue
-    secret: false
-    value: entraAuth
-  }
-}
 resource apiopenAiApiClientNamedValue 'Microsoft.ApiManagement/service/namedValues@2022-08-01' = {
   name: openAiApiClientNamedValue
   parent: apimService
@@ -624,7 +667,6 @@ module policyFragments './policy-fragments.bicep' = {
   }
   dependsOn: [
     apiopenAiApiClientNamedValue
-    apiopenAiApiEntraNamedValue
     apimOpenaiApiAudienceNamedValue
     apiopenAiApiTenantNamedValue
     ehUsageLogger
@@ -909,6 +951,39 @@ module openAIApiCenter './api-center-onboarding.bicep' = if (enableAPICenter) {
     apiPath: 'openai'
     customProperties: openAIApiCustomProperties
     documentationUrl: 'https://learn.microsoft.com/azure/ai-services/openai/'
+  }
+}
+
+var unifiedAiApiCustomProperties = {
+  Visibility: true
+  Categories: ['AI/ML', 'OpenAI', 'AI Foundry']
+  Vendor: 'Microsoft'
+  Type: 'AI Gateway'
+  Icon: 'https://learn.microsoft.com/media/logos/logo-ms-social.png'
+}
+module unifiedAiApiCenter './api-center-onboarding.bicep' = if (enableAPICenter) {
+  name: 'unified-ai-gateway-api-center'
+  params: {
+    apicServiceName: apiCenterServiceName
+    apicWorkspaceName: apiCenterWorkspaceName
+    environmentName: apiCenterAPIEnvironment
+    apiName: 'unified-ai-gateway-api'
+    apiDisplayName: 'Unified AI Gateway API'
+    apiDescription: 'Unified AI Gateway API — single wildcard endpoint routing to any AI backend through the shared gateway pipeline'
+    apiKind: 'REST'
+    lifecycleStage: 'production'
+    versionName: '1-0-0'
+    versionDisplayName: '1.0.0'
+    definitionName: 'unified-ai-gateway-api-definition'
+    definitionDisplayName: 'Unified AI Gateway API Definition'
+    definitionDescription: 'Unified AI Gateway API Definition for version 1.0.0'
+    deploymentName: 'unified-ai-gateway-api-deployment'
+    deploymentDisplayName: 'Unified AI Gateway API Deployment'
+    deploymentDescription: 'Unified AI Gateway API Deployment for version 1.0.0'
+    gatewayUrl: apimService.properties.gatewayUrl
+    apiPath: 'unified-ai'
+    customProperties: unifiedAiApiCustomProperties
+    documentationUrl: 'https://learn.microsoft.com/azure/api-management/'
   }
 }
 

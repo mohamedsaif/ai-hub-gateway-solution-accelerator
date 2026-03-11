@@ -1,0 +1,138 @@
+{
+    "openapi": "3.0.1",
+    "info": {
+        "title": "Unified AI Gateway API",
+        "description": "Wildcard API that routes requests to any AI backend (Azure OpenAI, AI Foundry, external) through the unified gateway pipeline.",
+        "version": "1.0"
+    },
+    "servers": [{
+        "url": ""
+    }],
+    "paths": {
+        "/deployments": {
+            "get": {
+                "summary": "List Deployments",
+                "operationId": "deployments",
+                "description": "List all available model deployments accessible through the unified AI gateway.",
+                "responses": {
+                    "200": {
+                        "description": "List of available deployments"
+                    }
+                }
+            }
+        },
+        "/deployments/{deployment-id}": {
+            "get": {
+                "summary": "Get Deployment",
+                "operationId": "deployment-by-name",
+                "description": "Get details of a specific model deployment by name.",
+                "parameters": [{
+                    "name": "deployment-id",
+                    "in": "path",
+                    "required": true,
+                    "schema": {
+                        "type": "string"
+                    }
+                }],
+                "responses": {
+                    "200": {
+                        "description": "Deployment details"
+                    }
+                }
+            }
+        },
+        "/*": {
+            "head": {
+                "summary": "HEAD",
+                "operationId": "head-wildcard",
+                "responses": {
+                    "200": {
+                        "description": ""
+                    }
+                }
+            },
+            "patch": {
+                "summary": "PATCH",
+                "operationId": "patch-wildcard",
+                "responses": {
+                    "200": {
+                        "description": ""
+                    }
+                }
+            },
+            "put": {
+                "summary": "PUT",
+                "operationId": "put-wildcard",
+                "responses": {
+                    "200": {
+                        "description": ""
+                    }
+                }
+            },
+            "delete": {
+                "summary": "DELETE",
+                "operationId": "delete-wildcard",
+                "responses": {
+                    "200": {
+                        "description": ""
+                    }
+                }
+            },
+            "get": {
+                "summary": "GET",
+                "operationId": "get-wildcard",
+                "responses": {
+                    "200": {
+                        "description": ""
+                    }
+                }
+            },
+            "options": {
+                "summary": "OPTIONS",
+                "operationId": "options-wildcard",
+                "responses": {
+                    "200": {
+                        "description": ""
+                    }
+                }
+            },
+            "post": {
+                "summary": "POST",
+                "operationId": "post-wildcard",
+                "responses": {
+                    "200": {
+                        "description": ""
+                    }
+                }
+            },
+            "trace": {
+                "summary": "TRACE",
+                "operationId": "trace-wildcard",
+                "responses": {
+                    "200": {
+                        "description": ""
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "securitySchemes": {
+            "apiKeyHeader": {
+                "type": "apiKey",
+                "name": "api-key",
+                "in": "header"
+            },
+            "apiKeyQuery": {
+                "type": "apiKey",
+                "name": "subscription-key",
+                "in": "query"
+            }
+        }
+    },
+    "security": [{
+        "apiKeyHeader": []
+    }, {
+        "apiKeyQuery": []
+    }]
+}

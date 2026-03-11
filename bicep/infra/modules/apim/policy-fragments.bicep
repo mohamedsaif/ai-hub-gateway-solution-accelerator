@@ -1,7 +1,9 @@
 /**
  * @module policy-fragments
  * @description This module creates all policy fragments for the API Management service.
- * It includes configurations for authentication, routing, usage tracking, and PII handling.
+ * It includes configurations for authentication, routing, usage tracking, PII handling,
+ * and the unified AI gateway pipeline (cache, request processing, backend selection,
+ * path building, and diagnostic headers).
  */
 
 // ------------------
@@ -124,6 +126,51 @@ resource aiFoundryDeploymentsPolicyFragment 'Microsoft.ApiManagement/service/pol
   }
 }
 
+resource centralCacheManagerPolicyFragment 'Microsoft.ApiManagement/service/policyFragments@2024-06-01-preview' = {
+  parent: apimService
+  name: 'central-cache-manager'
+  properties: {
+    value: loadTextContent('./policies/frag-central-cache-manager.xml')
+    format: 'rawxml'
+  }
+}
+
+resource requestProcessorPolicyFragment 'Microsoft.ApiManagement/service/policyFragments@2024-06-01-preview' = {
+  parent: apimService
+  name: 'request-processor'
+  properties: {
+    value: loadTextContent('./policies/frag-request-processor.xml')
+    format: 'rawxml'
+  }
+}
+
+resource backendSelectorPolicyFragment 'Microsoft.ApiManagement/service/policyFragments@2024-06-01-preview' = {
+  parent: apimService
+  name: 'backend-selector'
+  properties: {
+    value: loadTextContent('./policies/frag-backend-selector.xml')
+    format: 'rawxml'
+  }
+}
+
+resource pathBuilderPolicyFragment 'Microsoft.ApiManagement/service/policyFragments@2024-06-01-preview' = {
+  parent: apimService
+  name: 'path-builder'
+  properties: {
+    value: loadTextContent('./policies/frag-path-builder.xml')
+    format: 'rawxml'
+  }
+}
+
+resource diagnosticHeadersPolicyFragment 'Microsoft.ApiManagement/service/policyFragments@2024-06-01-preview' = {
+  parent: apimService
+  name: 'diagnostic-headers'
+  properties: {
+    value: loadTextContent('./policies/frag-diagnostic-headers.xml')
+    format: 'rawxml'
+  }
+}
+
 // ------------------
 //    OUTPUTS
 // ------------------
@@ -149,3 +196,14 @@ output piiStateSavingPolicyFragmentName string = enablePIIAnonymization ? piiSta
 output aiFoundryCompatibilityPolicyFragmentName string = enablePIIAnonymization ? aiFoundryCompatibilityPolicyFragment.name : ''
 @description('The name of the AI Foundry deployments policy fragment')
 output aiFoundryDeploymentsPolicyFragmentName string = enableAIModelInference ? aiFoundryDeploymentsPolicyFragment.name : ''
+
+@description('The name of the central cache manager policy fragment')
+output centralCacheManagerPolicyFragmentName string = centralCacheManagerPolicyFragment.name
+@description('The name of the request processor policy fragment')
+output requestProcessorPolicyFragmentName string = requestProcessorPolicyFragment.name
+@description('The name of the backend selector policy fragment')
+output backendSelectorPolicyFragmentName string = backendSelectorPolicyFragment.name
+@description('The name of the path builder policy fragment')
+output pathBuilderPolicyFragmentName string = pathBuilderPolicyFragment.name
+@description('The name of the diagnostic headers policy fragment')
+output diagnosticHeadersPolicyFragmentName string = diagnosticHeadersPolicyFragment.name

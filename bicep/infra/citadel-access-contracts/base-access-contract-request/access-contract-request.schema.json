@@ -98,7 +98,8 @@
         "description": "Array of APIM API names for this service code"
       },
       "examples": [
-        { "LLM": ["universal-llm-api", "azure-openai-api"] },
+        { "LLM": ["universal-llm-api", "azure-openai-api", "unified-ai-gateway-api"] },
+        { "UAI": ["unified-ai-gateway-api"] },
         { "DOC": ["document-intelligence-api"] }
       ]
     },

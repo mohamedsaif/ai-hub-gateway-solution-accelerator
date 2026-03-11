@@ -17,6 +17,15 @@
         <!-- Validate model access based on allowedModels -->
         <include-fragment fragment-id="validate-model-access" />
 
+        <!-- JWT authentication requirement for this product (set to "true" to require JWT + API Key) -->
+        <set-variable name="jwt-auth-required" value="false" />
+
+        <!-- RBAC: Set allowed backend pools (comma-separated pool IDs, empty = all pools allowed) -->
+        <set-variable name="allowedBackendPools" value="" />
+
+        <!-- Set default backend pool (empty = error on no match) -->
+        <set-variable name="defaultBackendPool" value="" />
+
         <!-- Capacity management - Subscription Level: allow only assigned tpm for each HR use case subscription -->
         <llm-token-limit counter-key="@(context.Subscription.Id)" tokens-per-minute="1000" estimate-prompt-tokens="false" token-quota="100000" token-quota-period="Monthly" />
     </inbound>

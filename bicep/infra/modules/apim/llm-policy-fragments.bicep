@@ -47,6 +47,24 @@ backendPools.Add(pool_INDEX);
 
 var backendPoolsCode = join(backendPoolsArray, '\n')
 
+// ---- Metadata Config JSON Generation ----
+// Flatten model metadata from llmBackendConfig into a lookup by model name
+var modelMetadata = reduce(llmBackendConfig, {}, (acc, config) =>
+  reduce(config.supportedModels, acc, (modelAcc, model) => union(modelAcc, {
+    '${model.name}': {
+      tier: model.?tier ?? 'standard'
+      apiVersion: model.?apiVersion ?? '2024-02-15-preview'
+      inferenceApiVersion: model.?inferenceApiVersion ?? '2024-05-01-preview'
+      timeout: model.?timeout ?? 120
+    }
+  }))
+)
+
+// Generate JSON entries for each unique model from allPools + modelMetadata lookup
+var metadataModelsEntries = [for pool in allPools: '""${pool.supportedModels[0]}"": { ""backend"": ""${pool.poolName}"", ""pool-type"": ""${pool.poolType}"", ""tier"": ""${modelMetadata[pool.supportedModels[0]].tier}"", ""api-version"": ""${modelMetadata[pool.supportedModels[0]].apiVersion}"", ""inference-api-version"": ""${modelMetadata[pool.supportedModels[0]].inferenceApiVersion}"", ""timeout"": ${modelMetadata[pool.supportedModels[0]].timeout} }']
+
+var metadataModelsJson = join(metadataModelsEntries, ',\n            ')
+
 // Generate model deployments code using reduce to flatten models from all backends
 // Each backend generates code for all its supported models (now with per-model metadata)
 // supportedModels is now an array of objects: { name, sku?, capacity?, modelFormat?, modelVersion?, retirementDate? }
@@ -78,6 +96,13 @@ var getAvailableModelsFragmentTemplate = loadTextContent('./policies/frag-get-av
 
 // Inject generated model deployments code into available models template
 var updatedGetAvailableModelsFragmentXml = replace(getAvailableModelsFragmentTemplate, '//{modelDeploymentsCode}', modelDeploymentsCode)
+
+/**
+ * Metadata config fragment template
+ * Inject generated models JSON into metadata-config XML template
+ */
+var metadataConfigTemplate = loadTextContent('./policies/frag-metadata-config.xml')
+var updatedMetadataConfigXml = replace(metadataConfigTemplate, '//{metadataConfigModels}', metadataModelsJson)
 
 // ------------------
 //    RESOURCES
@@ -168,6 +193,21 @@ resource getAvailableModelsFragment 'Microsoft.ApiManagement/service/policyFragm
 }
 
 /**
+ * Policy Fragment: Metadata Config
+ * Centralized JSON configuration for models, API types, cache, and timeout settings.
+ * Models section is auto-generated from llmBackendConfig during deployment.
+ */
+resource metadataConfigFragment 'Microsoft.ApiManagement/service/policyFragments@2024-06-01-preview' = {
+  parent: apimService
+  name: 'metadata-config'
+  properties: {
+    description: 'Centralized metadata configuration for AI models and API routing'
+    value: updatedMetadataConfigXml
+    format: 'rawxml'
+  }
+}
+
+/**
  * Policy Fragment: Validate Model Access
  * Restricts access to specific models based on the allowedModels variable
  */
@@ -196,6 +236,9 @@ output setTargetBackendPoolFragmentName string = setTargetBackendPoolPolicyFragm
 
 @description('Name of the get-available-models fragment')
 output getAvailableModelsFragmentName string = getAvailableModelsFragment.name
+
+@description('Name of the metadata-config fragment')
+output metadataConfigFragmentName string = metadataConfigFragment.name
 
 @description('Name of the validate-model-access fragment')
 output validateModelAccessFragmentName string = validateModelAccessFragment.name

@@ -1,0 +1,165 @@
+<!--
+====================================================================================================
+Path Builder Fragment
+====================================================================================================
+
+SUMMARY:
+    Reconstructs backend URI paths from known components to ensure all requests route to valid
+    endpoints only. Handles path construction, api-version injection, and model body injection
+    based on the detected API type and target pool type.
+
+PATH CONSTRUCTION BY API TYPE:
+    - openai:        /openai/deployments/{model-id}/chat/completions (azure-openai pool)
+                     /models/chat/completions (ai-foundry pool)
+    - inference:     /models/chat/completions (ai-foundry pool)
+                     /openai/deployments/{model-id}/chat/completions (azure-openai pool)
+    - openai-v1:     /openai/chat/completions (no api-version, v1 format)
+    - responses:     /openai/responses or /openai/responses/{response-id}
+    - responses-v1:  /openai/responses (no api-version, v1 format)
+
+ADDITIONAL TRANSFORMATIONS:
+    - Injects api-version query parameter for versioned API types
+    - Injects model field into request body when missing (Azure OpenAI format)
+
+INPUT VARIABLES:
+    - api-type: Detected API type from request-processor
+    - api-base-path: Base path for the API type from request-processor
+    - model-id: Extracted model identifier from request-processor
+    - response-id: Response ID for GET/DELETE operations on responses API
+    - selected-api-version: API version for backend requests from request-processor
+    - targetPoolType: Backend pool type from backend-selector (azure-openai|ai-foundry|external)
+
+OUTPUT VARIABLES:
+    - finalPath: Reconstructed path for backend routing
+
+DOWNSTREAM CONSUMERS:
+    - APIM rewrite-uri: Final URI sent to backend
+
+UPSTREAM DEPENDENCIES:
+    - request-processor fragment: Provides api-type, model-id, api-base-path, response-id, selected-api-version
+    - backend-selector fragment: Provides targetPoolType for pool-type-specific path building
+====================================================================================================
+-->
+<fragment>
+    <!-- Skip path building for non-LLM requests -->
+    <choose>
+        <when condition="@(context.Variables.GetValueOrDefault<string>("model-id", String.Empty) == "non-llm-request")">
+            <!-- Non-LLM request - path handled by operation-specific policy -->
+        </when>
+        <otherwise>
+            <!-- Build path based on API type and pool type -->
+            <choose>
+                <!-- OpenAI v1 format: no api-version, flat path -->
+                <when condition="@(context.Variables.GetValueOrDefault<string>("api-type", String.Empty).Equals("openai-v1", StringComparison.OrdinalIgnoreCase))">
+                    <set-variable name="finalPath" value="@{
+                        var basePath = context.Variables.GetValueOrDefault<string>("api-base-path", "/openai");
+                        return $"{basePath}/chat/completions";
+                    }" />
+                    <set-body>@(context.Request.Body.As<string>())</set-body>
+                </when>
+
+                <!-- Responses API: versioned and v1 -->
+                <when condition="@(context.Variables.GetValueOrDefault<string>("api-type", String.Empty).StartsWith("responses", StringComparison.OrdinalIgnoreCase))">
+                    <set-variable name="finalPath" value="@{
+                        var apiType = context.Variables.GetValueOrDefault<string>("api-type", String.Empty);
+                        var basePath = context.Variables.GetValueOrDefault<string>("api-base-path", "/openai/responses");
+                        var responseId = context.Variables.GetValueOrDefault<string>("response-id", String.Empty);
+                        var method = context.Request.Method;
+
+                        var includeResponseId = !String.IsNullOrEmpty(responseId) && (method == "GET" || method == "DELETE");
+                        return includeResponseId ? $"{basePath}/{responseId}" : basePath;
+                    }" />
+                    <!-- Inject api-version for versioned responses (not responses-v1) -->
+                    <choose>
+                        <when condition="@(context.Variables.GetValueOrDefault<string>("api-type", String.Empty) == "responses")">
+                            <set-query-parameter name="api-version" exists-action="override">
+                                <value>@(context.Variables.GetValueOrDefault<string>("selected-api-version"))</value>
+                            </set-query-parameter>
+                        </when>
+                    </choose>
+                </when>
+
+                <!-- Inference API: path depends on pool type -->
+                <when condition="@(context.Variables.GetValueOrDefault<string>("api-type", String.Empty).Equals("inference", StringComparison.OrdinalIgnoreCase))">
+                    <set-variable name="finalPath" value="@{
+                        var poolType = context.Variables.GetValueOrDefault<string>("targetPoolType", "azure-openai");
+                        var modelId = context.Variables.GetValueOrDefault<string>("model-id", String.Empty);
+
+                        // AI Foundry uses /models/ path
+                        if (poolType == "ai-foundry") {
+                            return "/models/chat/completions";
+                        }
+
+                        // Azure OpenAI uses /openai/deployments/{model}/ path
+                        return $"/openai/deployments/{modelId}/chat/completions";
+                    }" />
+                    <set-query-parameter name="api-version" exists-action="override">
+                        <value>@(context.Variables.GetValueOrDefault<string>("selected-api-version"))</value>
+                    </set-query-parameter>
+                </when>
+
+                <!-- Default OpenAI API: path depends on pool type -->
+                <otherwise>
+                    <set-variable name="finalPath" value="@{
+                        var poolType = context.Variables.GetValueOrDefault<string>("targetPoolType", "azure-openai");
+                        var modelId = context.Variables.GetValueOrDefault<string>("model-id", String.Empty);
+
+                        // AI Foundry: use /models/ path
+                        if (poolType == "ai-foundry") {
+                            return "/models/chat/completions";
+                        }
+
+                        // Azure OpenAI: use /openai/deployments/{model}/ path
+                        return $"/openai/deployments/{modelId}/chat/completions";
+                    }" />
+                    <!-- Inject model field into body if missing (Azure OpenAI format) -->
+                    <set-body>@{
+                        var body = context.Request.Body.As<string>();
+                        if (!String.IsNullOrEmpty(body)) {
+                            try {
+                                var parsedBody = JObject.Parse(body);
+                                var modelId = context.Variables.GetValueOrDefault<string>("model-id", String.Empty);
+                                if (parsedBody["model"] == null || String.IsNullOrEmpty(parsedBody["model"].ToString())) {
+                                    parsedBody["model"] = modelId;
+                                }
+                                return parsedBody.ToString();
+                            } catch {
+                                return body;
+                            }
+                        }
+                        return body;
+                    }</set-body>
+                    <set-query-parameter name="api-version" exists-action="override">
+                        <value>@(context.Variables.GetValueOrDefault<string>("selected-api-version"))</value>
+                    </set-query-parameter>
+                </otherwise>
+            </choose>
+
+            <!-- Handle path errors -->
+            <choose>
+                <when condition="@(String.IsNullOrEmpty(context.Variables.GetValueOrDefault<string>("finalPath", String.Empty)))">
+                    <trace source="Path-Builder-Error" severity="error">
+                        <message>@($"UAIG - Path builder error for API type: {context.Variables.GetValueOrDefault<string>("api-type")}, pool type: {context.Variables.GetValueOrDefault<string>("targetPoolType")}")</message>
+                    </trace>
+                    <return-response>
+                        <set-status code="500" reason="Internal Server Error" />
+                        <set-header name="Content-Type" exists-action="override">
+                            <value>application/json</value>
+                        </set-header>
+                        <set-body>@{
+                            return new JObject(
+                                new JProperty("error", new JObject(
+                                    new JProperty("message", $"No path determined for API type: {context.Variables.GetValueOrDefault<string>("api-type")}"),
+                                    new JProperty("code", "path_builder_error")
+                                ))
+                            ).ToString();
+                        }</set-body>
+                    </return-response>
+                </when>
+            </choose>
+
+            <!-- Rewrite URI with the validated path -->
+            <rewrite-uri template="@(context.Variables.GetValueOrDefault<string>("finalPath"))" copy-unmatched-params="true" />
+        </otherwise>
+    </choose>
+</fragment>

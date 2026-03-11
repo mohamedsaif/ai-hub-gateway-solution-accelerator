@@ -128,7 +128,7 @@ param enableAzureAISearch = bool(readEnvironmentVariable('ENABLE_AZURE_AI_SEARCH
 param enableAIGatewayPiiRedaction = bool(readEnvironmentVariable('ENABLE_PII_REDACTION', 'true'))
 param enableOpenAIRealtime = bool(readEnvironmentVariable('ENABLE_OPENAI_REALTIME', 'true'))
 param enableAIFoundry = bool(readEnvironmentVariable('ENABLE_AI_FOUNDRY', 'true'))
-param entraAuth = bool(readEnvironmentVariable('AZURE_ENTRA_AUTH', 'false'))
+// param entraAuth = bool(readEnvironmentVariable('AZURE_ENTRA_AUTH', 'false'))
 param enableAPICenter = bool(readEnvironmentVariable('ENABLE_API_CENTER', 'false'))
 param enableManagedRedis = bool(readEnvironmentVariable('ENABLE_MANAGED_REDIS', 'true'))
 

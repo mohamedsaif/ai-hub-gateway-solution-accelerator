@@ -4,34 +4,60 @@
         <!-- CORS Configuration for AI Foundry Compatibility -->
         <include-fragment fragment-id="ai-foundry-compatibility" />
         
-        <!-- Get deployments from specific Foundry resource using ARM-->
+        <!-- Load and cache metadata configuration -->
+        <include-fragment fragment-id="metadata-config" />
+        <include-fragment fragment-id="central-cache-manager" />
+
+        <!-- Get deployments from specific Foundry resource using ARM -->
         <!--<include-fragment fragment-id="ai-foundry-deployments" />-->
 
-        <!-- Get deployments using Citadel on-boarded backends -->
-        <include-fragment fragment-id="get-available-models" />
-
-        <!-- Find deployment by deployment-id URL parameter -->
+        <!-- Find deployment by deployment-id URL parameter from config-models -->
         <return-response>
             <set-status code="@{
                 string deploymentId = context.Request.MatchedParameters["deployment-id"];
-                JArray models = JArray.Parse((string)context.Variables["availableFilteredModels"]);
-                
-                foreach (var model in models)
-                {
-                    if (string.Equals(model["name"]?.ToString(), deploymentId, StringComparison.OrdinalIgnoreCase))
-                    {
+                var models = context.Variables.GetValueOrDefault<JObject>("config-models");
+                if (models == null) return 404;
+
+                // Check allowedModels filter
+                var allowedModelsStr = context.Variables.ContainsKey("allowedModels")
+                    ? (string)context.Variables["allowedModels"]
+                    : "";
+                HashSet<string> allowedSet = null;
+                if (!String.IsNullOrWhiteSpace(allowedModelsStr)) {
+                    allowedSet = new HashSet<string>(
+                        allowedModelsStr.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                                        .Select(m => m.Trim()),
+                        StringComparer.OrdinalIgnoreCase
+                    );
+                }
+
+                foreach (var prop in models.Properties()) {
+                    if (String.Equals(prop.Name, deploymentId, StringComparison.OrdinalIgnoreCase)) {
+                        if (allowedSet != null && !allowedSet.Contains(prop.Name)) return 404;
                         return 200;
                     }
                 }
                 return 404;
             }" reason="@{
                 string deploymentId = context.Request.MatchedParameters["deployment-id"];
-                JArray models = JArray.Parse((string)context.Variables["availableFilteredModels"]);
-                
-                foreach (var model in models)
-                {
-                    if (string.Equals(model["name"]?.ToString(), deploymentId, StringComparison.OrdinalIgnoreCase))
-                    {
+                var models = context.Variables.GetValueOrDefault<JObject>("config-models");
+                if (models == null) return "Not Found";
+
+                var allowedModelsStr = context.Variables.ContainsKey("allowedModels")
+                    ? (string)context.Variables["allowedModels"]
+                    : "";
+                HashSet<string> allowedSet = null;
+                if (!String.IsNullOrWhiteSpace(allowedModelsStr)) {
+                    allowedSet = new HashSet<string>(
+                        allowedModelsStr.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                                        .Select(m => m.Trim()),
+                        StringComparer.OrdinalIgnoreCase
+                    );
+                }
+
+                foreach (var prop in models.Properties()) {
+                    if (String.Equals(prop.Name, deploymentId, StringComparison.OrdinalIgnoreCase)) {
+                        if (allowedSet != null && !allowedSet.Contains(prop.Name)) return "Not Found";
                         return "OK";
                     }
                 }
@@ -42,24 +68,69 @@
             </set-header>
             <set-body>@{
                 string deploymentId = context.Request.MatchedParameters["deployment-id"];
-                JArray models = JArray.Parse((string)context.Variables["availableFilteredModels"]);
-                
-                foreach (var model in models)
-                {
-                    if (string.Equals(model["name"]?.ToString(), deploymentId, StringComparison.OrdinalIgnoreCase))
-                    {
-                        return model.ToString();
+                var models = context.Variables.GetValueOrDefault<JObject>("config-models");
+                if (models == null) {
+                    return new JObject(
+                        new JProperty("error", new JObject(
+                            new JProperty("code", "DeploymentNotFound"),
+                            new JProperty("message", $"The deployment '{deploymentId}' does not exist.")
+                        ))
+                    ).ToString();
+                }
+
+                // Check allowedModels filter
+                var allowedModelsStr = context.Variables.ContainsKey("allowedModels")
+                    ? (string)context.Variables["allowedModels"]
+                    : "";
+                HashSet<string> allowedSet = null;
+                if (!String.IsNullOrWhiteSpace(allowedModelsStr)) {
+                    allowedSet = new HashSet<string>(
+                        allowedModelsStr.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                                        .Select(m => m.Trim()),
+                        StringComparer.OrdinalIgnoreCase
+                    );
+                }
+
+                foreach (var prop in models.Properties()) {
+                    if (String.Equals(prop.Name, deploymentId, StringComparison.OrdinalIgnoreCase)) {
+                        if (allowedSet != null && !allowedSet.Contains(prop.Name)) break;
+
+                        var modelConfig = (JObject)prop.Value;
+                        var backend = modelConfig["backend"]?.ToString() ?? "";
+                        var poolType = modelConfig["pool-type"]?.ToString() ?? "azure-openai";
+                        var sku = modelConfig["sku"]?.ToString() ?? "Standard";
+                        var capacity = modelConfig["capacity"]?.ToString() ?? "100";
+                        var modelFormat = modelConfig["modelFormat"]?.ToString() ?? "OpenAI";
+                        var modelVersion = modelConfig["modelVersion"]?.ToString() ?? "1";
+                        var retirementDate = modelConfig["retirementDate"]?.ToString();
+
+                        var deployment = new JObject()
+                        {
+                            { "id", backend },
+                            { "type", poolType },
+                            { "name", prop.Name },
+                            { "sku", new JObject() { { "name", sku }, { "capacity", Int32.Parse(capacity) } } },
+                            { "properties", new JObject() {
+                                { "model", new JObject() { { "format", modelFormat }, { "name", prop.Name }, { "version", modelVersion } } },
+                                { "capabilities", new JObject() { { "chatCompletion", "true" } } },
+                                { "provisioningState", "Succeeded" }
+                            }}
+                        };
+
+                        if (!String.IsNullOrEmpty(retirementDate)) {
+                            ((JObject)deployment["properties"])["retirementDate"] = retirementDate;
+                        }
+
+                        return deployment.ToString();
                     }
                 }
                 
-                // Return error response if not found
-                JObject error = new JObject();
-                error["error"] = new JObject()
-                {
-                    { "code", "DeploymentNotFound" },
-                    { "message", $"The deployment '{deploymentId}' does not exist." }
-                };
-                return error.ToString();
+                return new JObject(
+                    new JProperty("error", new JObject(
+                        new JProperty("code", "DeploymentNotFound"),
+                        new JProperty("message", $"The deployment '{deploymentId}' does not exist.")
+                    ))
+                ).ToString();
             }</set-body>
         </return-response>
         

@@ -3,8 +3,9 @@
         <base />
         
         <!--
-            Universal LLM API Policy (Inference)
-            Purpose: Routes inference-compatible requests through the shared Unified AI Gateway pipeline
+            Unified AI Gateway API Policy
+            Purpose: Wildcard API that routes all AI requests through the shared Unified AI Gateway pipeline.
+            Supports OpenAI, Inference, Responses, and OpenAI v1 API formats via a single endpoint.
 
             Flow:
             1. Load and cache metadata configuration (models, api-types, cache & timeout settings)
@@ -13,7 +14,8 @@
             4. Validate model access against product-level allowedModels RBAC
             5. Select backend pool with RBAC filtering and configure authentication
             6. Build correct backend URL path based on api-type and pool-type
-            7. Configure collecting usage metrics
+            7. Configure timeout from metadata-config model settings
+            8. Configure collecting usage metrics
 
             Configuration:
             - Model RBAC: Set allowedModels in product policy (comma-separated model names)
@@ -22,6 +24,27 @@
             - Backend pool definitions are auto-generated in metadata-config fragment
         -->
         
+        <!-- Validate product context -->
+        <choose>
+            <when condition="@(context.Product == null)">
+                <return-response>
+                    <set-status code="401" reason="Unauthorized" />
+                    <set-header name="Content-Type" exists-action="override">
+                        <value>application/json</value>
+                    </set-header>
+                    <set-body>@{
+                        return new JObject(
+                            new JProperty("error", new JObject(
+                                new JProperty("message", "A valid subscription key is required to access the Unified AI Gateway."),
+                                new JProperty("type", "authentication_error"),
+                                new JProperty("code", "subscription_required")
+                            ))
+                        ).ToString();
+                    }</set-body>
+                </return-response>
+            </when>
+        </choose>
+
         <!-- Step 1: Load and cache metadata configuration -->
         <include-fragment fragment-id="metadata-config" />
         <include-fragment fragment-id="central-cache-manager" />
@@ -41,11 +64,34 @@
         <!-- Step 6: Build backend URL path -->
         <include-fragment fragment-id="path-builder" />
 
-        <!-- Step 7: Configure collecting usage metrics -->
-        <include-fragment fragment-id="set-llm-usage" />
+        <!-- Step 7: Configure timeout from model metadata -->
+        <choose>
+            <when condition="@{
+                var modelId = context.Variables.GetValueOrDefault<string>("model-id", "");
+                return modelId != "non-llm-request" && modelId != "not-applicable";
+            }">
+                <set-variable name="backend-timeout" value="@{
+                    var modelId = context.Variables.GetValueOrDefault<string>("model-id", "");
+                    var models = context.Variables.GetValueOrDefault<JObject>("config-models");
+                    var timeoutSettings = context.Variables.GetValueOrDefault<JObject>("config-timeout-settings");
+                    var isStreaming = context.Variables.GetValueOrDefault<string>("is-streaming", "false") == "true";
+                    
+                    int timeout = 120;
+                    if (models != null && models[modelId] != null && models[modelId]["timeout"] != null) {
+                        timeout = models[modelId]["timeout"].Value<int>();
+                    }
 
-        <!-- CORS Configuration for AI Foundry Compatibility -->
-        <include-fragment fragment-id="ai-foundry-compatibility" />
+                    if (isStreaming && timeoutSettings != null && timeoutSettings["streaming-multiplier"] != null) {
+                        timeout = timeout * timeoutSettings["streaming-multiplier"].Value<int>();
+                    }
+
+                    return timeout.ToString();
+                }" />
+            </when>
+        </choose>
+
+        <!-- Step 8: Configure collecting usage metrics -->
+        <include-fragment fragment-id="set-llm-usage" />
     </inbound>
     <backend>
         <!--

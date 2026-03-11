@@ -98,6 +98,18 @@ The central governance layer with unified AI Gateway that all AI workloads route
 |-----------|---------|---------------------|
 | **🚪 API Management** | Unified AI gateway | LLM governance, AI resiliency, AI registry gateway |
 | **📘 API Center** | Universal AI Registry | Discovery of available AI tools, agents and AI services |
+
+#### Gateway API Endpoints
+
+The AI Gateway exposes three API endpoints, all powered by the same unified fragment pipeline:
+
+| Endpoint | Path | Format | Use Case |
+|----------|------|--------|----------|
+| **Azure OpenAI API** | `/openai/*` | Azure OpenAI SDK compatible | Drop-in replacement for Azure OpenAI direct access |
+| **Universal LLM API** | `/models/*` | Azure AI Inference format | Multi-provider inference (Foundry, OpenAI, external) |
+| **Unified AI Gateway** | `/unified-ai/*` | Wildcard pass-through | Single endpoint for any AI backend with automatic routing |
+
+All endpoints support model discovery via `/deployments` and `/deployments/{name}`, RBAC-based model and backend pool filtering, and diagnostic headers (`UAIG-*`).
 | **🔍 Microsoft Foundry** | Control Plane/Models/Observability | Platform LLMs, Control Plane & AI Evaluations |
 | **📊 Log Analytics** | Logs, metrics & audits | Scalable enterprise telemetry ingestion and storage |
 | **📊 Application Insights** | Platform monitoring | Performance dashboards, automated alerts |
