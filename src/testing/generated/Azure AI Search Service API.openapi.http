@@ -1,0 +1,423 @@
+# Contract Tests: AI Search Service API (v1.0)
+# Auto-generated from: bicep/infra/modules/apim\ai-search-api\Azure AI Search Service API.openapi.yaml
+# Run with VS Code REST Client or httpYac
+
+@baseUrl = {{ai_search_api_base_url}}
+@apiKey = ""
+
+### DataSources_Get [DataSources]
+GET {{baseUrl}}/datasources('{dataSourceName}')
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### DataSources_CreateOrUpdate [DataSources]
+PUT {{baseUrl}}/datasources('{dataSourceName}')
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "name": "string",
+  "description": "string",
+  "type": "azuresql",
+  "credentials": {
+    "connectionString": "string"
+  },
+  "container": {
+    "name": "string",
+    "query": "string"
+  },
+  "dataChangeDetectionPolicy": {
+    "@odata.type": "string"
+  },
+  "dataDeletionDetectionPolicy": {
+    "@odata.type": "string"
+  },
+  "@odata.etag": "string",
+  "encryptionKey": {
+    "keyVaultKeyName": "string",
+    "keyVaultKeyVersion": "string",
+    "keyVaultUri": "string",
+    "accessCredentials": {
+      "applicationId": "string",
+      "applicationSecret": "string"
+    }
+  }
+}
+
+### DataSources_Delete [DataSources]
+DELETE {{baseUrl}}/datasources('{dataSourceName}')
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### DataSources_List [DataSources]
+GET {{baseUrl}}/datasources
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### DataSources_Create [DataSources]
+POST {{baseUrl}}/datasources
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "name": "string",
+  "description": "string",
+  "type": "azuresql",
+  "credentials": {
+    "connectionString": "string"
+  },
+  "container": {
+    "name": "string",
+    "query": "string"
+  },
+  "dataChangeDetectionPolicy": {
+    "@odata.type": "string"
+  },
+  "dataDeletionDetectionPolicy": {
+    "@odata.type": "string"
+  },
+  "@odata.etag": "string",
+  "encryptionKey": {
+    "keyVaultKeyName": "string",
+    "keyVaultKeyVersion": "string",
+    "keyVaultUri": "string",
+    "accessCredentials": {
+      "applicationId": "string",
+      "applicationSecret": "string"
+    }
+  }
+}
+
+### Indexers_Reset [Indexers]
+POST {{baseUrl}}/indexers('{indexerName}')/search.reset
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{}
+
+### Indexers_Run [Indexers]
+POST {{baseUrl}}/indexers('{indexerName}')/search.run
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{}
+
+### Indexers_Get [Indexers]
+GET {{baseUrl}}/indexers('{indexerName}')
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Indexers_CreateOrUpdate [Indexers]
+PUT {{baseUrl}}/indexers('{indexerName}')
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "name": "string",
+  "description": "string",
+  "dataSourceName": "string",
+  "skillsetName": "string",
+  "targetIndexName": "string",
+  "schedule": {
+    "interval": "string",
+    "startTime": "string"
+  },
+  "parameters": {
+    "batchSize": 0,
+    "maxFailedItems": 0,
+    "maxFailedItemsPerBatch": 0,
+    "configuration": {
+      "parsingMode": "default",
+      "excludedFileNameExtensions": "",
+      "indexedFileNameExtensions": "",
+      "failOnUnsupportedContentType": false,
+      "failOnUnprocessableDocument": false,
+      "indexStorageMetadataOnlyForOversizedDocuments": false,
+      "delimitedTextHeaders": "string",
+      "delimitedTextDelimiter": "string",
+      "firstLineContainsHeaders": true,
+      "documentRoot": "string",
+      "dataToExtract": "contentAndMetadata",
+      "imageAction": "none",
+      "allowSkillsetToReadFileData": false,
+      "pdfTextRotationAlgorithm": "none",
+      "executionEnvironment": "standard",
+      "queryTimeout": "2025-06-17"
+    }
+  },
+  "fieldMappings": [
+    {
+      "sourceFieldName": "string",
+      "targetFieldName": "string",
+      "mappingFunction": {
+        "name": "string",
+        "parameters": {}
+      }
+    }
+  ],
+  "outputFieldMappings": [
+    {
+      "sourceFieldName": "string",
+      "targetFieldName": "string",
+      "mappingFunction": {
+        "name": "string",
+        "parameters": {}
+      }
+    }
+  ],
+  "disabled": false,
+  "@odata.etag": "string",
+  "encryptionKey": {
+    "keyVaultKeyName": "string",
+    "keyVaultKeyVersion": "string",
+    "keyVaultUri": "string",
+    "accessCredentials": {
+      "applicationId": "string",
+      "applicationSecret": "string"
+    }
+  }
+}
+
+### Indexers_Delete [Indexers]
+DELETE {{baseUrl}}/indexers('{indexerName}')
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Indexers_List [Indexers]
+GET {{baseUrl}}/indexers
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Indexers_Create [Indexers]
+POST {{baseUrl}}/indexers
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "name": "string",
+  "description": "string",
+  "dataSourceName": "string",
+  "skillsetName": "string",
+  "targetIndexName": "string",
+  "schedule": {
+    "interval": "string",
+    "startTime": "string"
+  },
+  "parameters": {
+    "batchSize": 0,
+    "maxFailedItems": 0,
+    "maxFailedItemsPerBatch": 0,
+    "configuration": {
+      "parsingMode": "default",
+      "excludedFileNameExtensions": "",
+      "indexedFileNameExtensions": "",
+      "failOnUnsupportedContentType": false,
+      "failOnUnprocessableDocument": false,
+      "indexStorageMetadataOnlyForOversizedDocuments": false,
+      "delimitedTextHeaders": "string",
+      "delimitedTextDelimiter": "string",
+      "firstLineContainsHeaders": true,
+      "documentRoot": "string",
+      "dataToExtract": "contentAndMetadata",
+      "imageAction": "none",
+      "allowSkillsetToReadFileData": false,
+      "pdfTextRotationAlgorithm": "none",
+      "executionEnvironment": "standard",
+      "queryTimeout": "2025-06-17"
+    }
+  },
+  "fieldMappings": [
+    {
+      "sourceFieldName": "string",
+      "targetFieldName": "string",
+      "mappingFunction": {
+        "name": "string",
+        "parameters": {}
+      }
+    }
+  ],
+  "outputFieldMappings": [
+    {
+      "sourceFieldName": "string",
+      "targetFieldName": "string",
+      "mappingFunction": {
+        "name": "string",
+        "parameters": {}
+      }
+    }
+  ],
+  "disabled": false,
+  "@odata.etag": "string",
+  "encryptionKey": {
+    "keyVaultKeyName": "string",
+    "keyVaultKeyVersion": "string",
+    "keyVaultUri": "string",
+    "accessCredentials": {
+      "applicationId": "string",
+      "applicationSecret": "string"
+    }
+  }
+}
+
+### Indexers_GetStatus [Indexers]
+GET {{baseUrl}}/indexers('{indexerName}')/search.status
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Skillsets_Get [Skillsets]
+GET {{baseUrl}}/skillsets('{skillsetName}')
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Skillsets_CreateOrUpdate [Skillsets]
+PUT {{baseUrl}}/skillsets('{skillsetName}')
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "name": "sample-name",
+  "description": "sample-description",
+  "skills": []
+}
+
+### Skillsets_Delete [Skillsets]
+DELETE {{baseUrl}}/skillsets('{skillsetName}')
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Skillsets_List [Skillsets]
+GET {{baseUrl}}/skillsets
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Skillsets_Create [Skillsets]
+POST {{baseUrl}}/skillsets
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "name": "sample-name",
+  "description": "sample-description",
+  "skills": []
+}
+
+### SynonymMaps_Get [SynonymMaps]
+GET {{baseUrl}}/synonymmaps('{synonymMapName}')
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### SynonymMaps_CreateOrUpdate [SynonymMaps]
+PUT {{baseUrl}}/synonymmaps('{synonymMapName}')
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "name": "string",
+  "format": "solr",
+  "synonyms": "string",
+  "encryptionKey": {
+    "keyVaultKeyName": "string",
+    "keyVaultKeyVersion": "string",
+    "keyVaultUri": "string",
+    "accessCredentials": {
+      "applicationId": "string",
+      "applicationSecret": "string"
+    }
+  },
+  "@odata.etag": "string"
+}
+
+### SynonymMaps_Delete [SynonymMaps]
+DELETE {{baseUrl}}/synonymmaps('{synonymMapName}')
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### SynonymMaps_List [SynonymMaps]
+GET {{baseUrl}}/synonymmaps
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### SynonymMaps_Create [SynonymMaps]
+POST {{baseUrl}}/synonymmaps
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "name": "string",
+  "format": "solr",
+  "synonyms": "string",
+  "encryptionKey": {
+    "keyVaultKeyName": "string",
+    "keyVaultKeyVersion": "string",
+    "keyVaultUri": "string",
+    "accessCredentials": {
+      "applicationId": "string",
+      "applicationSecret": "string"
+    }
+  },
+  "@odata.etag": "string"
+}
+
+### Indexes_List [Indexes]
+GET {{baseUrl}}/indexes
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Indexes_Create [Indexes]
+POST {{baseUrl}}/indexes
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "name": "sample-name",
+  "fields": [],
+  "scoringProfiles": []
+}
+
+### Indexes_Get [Indexes]
+GET {{baseUrl}}/indexes('{indexName}')
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Indexes_CreateOrUpdate [Indexes]
+PUT {{baseUrl}}/indexes('{indexName}')
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "name": "sample-name",
+  "fields": [],
+  "scoringProfiles": []
+}
+
+### Indexes_Delete [Indexes]
+DELETE {{baseUrl}}/indexes('{indexName}')
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Indexes_GetStatistics [Indexes]
+GET {{baseUrl}}/indexes('{indexName}')/search.stats
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Indexes_Analyze [Indexes]
+POST {{baseUrl}}/indexes('{indexName}')/search.analyze
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "text": "string",
+  "analyzer": "ar.microsoft",
+  "tokenizer": "classic",
+  "tokenFilters": [
+    "arabic_normalization"
+  ],
+  "charFilters": [
+    "html_strip"
+  ]
+}
+
+### GetServiceStatistics [Service]
+GET {{baseUrl}}/servicestats
+Content-Type: application/json
+api-key: {{apiKey}}

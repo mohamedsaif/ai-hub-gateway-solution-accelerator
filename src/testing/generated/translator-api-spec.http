@@ -1,0 +1,78 @@
+# Contract Tests: Translator API (v1.0)
+# Auto-generated from: bicep/infra/modules/apim\translator-api\translator-api-spec.yaml
+# Run with VS Code REST Client or httpYac
+
+@baseUrl = {{translator_api_base_url}}
+@apiKey = ""
+
+### Translator_BreakSentence [BreakSentence]
+POST {{baseUrl}}/BreakSentence?api-version=3.0
+Content-Type: application/json
+api-key: {{apiKey}}
+
+[
+  {
+    "text": "Today is a good day."
+  }
+]
+
+### Translator_Detect [Detect]
+POST {{baseUrl}}/Detect?api-version=3.0
+Content-Type: application/json
+api-key: {{apiKey}}
+
+[
+  {
+    "text": "What language is this? I am not sure, nein"
+  }
+]
+
+### Translator_DictionaryLookup [Dictionary/Lookup]
+POST {{baseUrl}}/Dictionary/Lookup?api-version=3.0
+Content-Type: application/json
+api-key: {{apiKey}}
+
+[
+  {
+    "text": "Bug"
+  }
+]
+
+### Translator_DictionaryExamples [DictionaryExamples]
+POST {{baseUrl}}/Dictionary/Examples?api-version=3.0
+Content-Type: application/json
+api-key: {{apiKey}}
+
+[
+  {
+    "text": "bug",
+    "translation": "bicho"
+  }
+]
+
+### Translator_Languages [Languages]
+GET {{baseUrl}}/Languages?api-version=3.0
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Translator_Translate [Translate]
+POST {{baseUrl}}/translate?api-version=3.0
+Content-Type: application/json
+api-key: {{apiKey}}
+
+[
+  {
+    "text": "I would really like to drive your car."
+  }
+]
+
+### Translator_Transliterate [Transliterate]
+POST {{baseUrl}}/transliterate?api-version=3.0
+Content-Type: application/json
+api-key: {{apiKey}}
+
+[
+  {
+    "text": "Good morning, how are you today?"
+  }
+]

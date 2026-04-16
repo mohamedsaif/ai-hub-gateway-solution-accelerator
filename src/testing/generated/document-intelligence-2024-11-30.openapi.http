@@ -1,0 +1,223 @@
+# Contract Tests: Azure Document Intelligence (v1.0)
+# Auto-generated from: bicep/infra/modules/apim\doc-intel-api\document-intelligence-2024-11-30.openapi.yaml
+# Run with VS Code REST Client or httpYac
+
+@baseUrl = {{doc_intel_api_base_url}}
+@apiKey = ""
+
+### DocumentClassifiers_ListClassifiers
+GET {{baseUrl}}/documentClassifiers
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### DocumentClassifiers_GetClassifier
+GET {{baseUrl}}/documentClassifiers/{classifierId}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### DocumentClassifiers_DeleteClassifier
+DELETE {{baseUrl}}/documentClassifiers/{classifierId}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### DocumentClassifiers_ClassifyDocumentFromStream
+POST {{baseUrl}}/documentClassifiers/{classifierId}:analyze?api-version=2024-11-30
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{}
+
+### DocumentClassifiers_CopyClassifierTo
+POST {{baseUrl}}/documentClassifiers/{classifierId}:copyTo
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "targetResourceId": "string",
+  "targetResourceRegion": "string",
+  "targetClassifierId": "string",
+  "targetClassifierLocation": "string",
+  "accessToken": "string",
+  "expirationDateTime": "string"
+}
+
+### DocumentClassifiers_GetClassifyResult
+GET {{baseUrl}}/documentClassifiers/{classifierId}/analyzeResults/{resultId}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### DocumentClassifiers_AuthorizeClassifierCopy
+POST {{baseUrl}}/documentClassifiers:authorizeCopy
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "classifierId": "string",
+  "description": "string",
+  "tags": {}
+}
+
+### DocumentClassifiers_BuildClassifier
+POST {{baseUrl}}/documentClassifiers:build
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "classifierId": "string",
+  "description": "string",
+  "baseClassifierId": "string",
+  "docTypes": {},
+  "allowOverwrite": false
+}
+
+### DocumentModels_ListModels
+GET {{baseUrl}}/documentModels
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### DocumentModels_AnalyzeDocument
+POST {{baseUrl}}/documentModels/{modelId}:analyze
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "urlSource": "https://raw.githubusercontent.com/Azure-Samples/cognitive-services-REST-api-samples/master/curl/form-recognizer/rest-api/read.png"
+}
+
+### DocumentModels_AnalyzeBatchDocuments
+POST {{baseUrl}}/documentModels/{modelId}:analyzeBatch
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "azureBlobSource": {
+    "containerUrl": "string",
+    "prefix": "string"
+  },
+  "azureBlobFileListSource": {
+    "containerUrl": "string",
+    "fileList": "string"
+  },
+  "resultContainerUrl": "string",
+  "resultPrefix": "string",
+  "overwriteExisting": false
+}
+
+### DocumentModels_GetModel
+GET {{baseUrl}}/documentModels/{modelId}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### DocumentModels_DeleteModel
+DELETE {{baseUrl}}/documentModels/{modelId}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### DocumentModels_CopyModelTo
+POST {{baseUrl}}/documentModels/{modelId}:copyTo
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "targetResourceId": "string",
+  "targetResourceRegion": "string",
+  "targetModelId": "string",
+  "targetModelLocation": "string",
+  "accessToken": "string",
+  "expirationDateTime": "string"
+}
+
+### DocumentModels_ListAnalyzeBatchResults
+GET {{baseUrl}}/documentModels/{modelId}/analyzeBatchResults
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### DocumentModels_GetAnalyzeBatchResult
+GET {{baseUrl}}/documentModels/{modelId}/analyzeBatchResults/{resultId}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### DocumentModels_DeleteAnalyzeBatchResult
+DELETE {{baseUrl}}/documentModels/{modelId}/analyzeBatchResults/{resultId}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### DocumentModels_GetAnalyzeResult
+GET {{baseUrl}}/documentModels/{modelId}/analyzeResults/{resultId}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### DocumentModels_DeleteAnalyzeResult
+DELETE {{baseUrl}}/documentModels/{modelId}/analyzeResults/{resultId}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### DocumentModels_GetAnalyzeResultFigure
+GET {{baseUrl}}/documentModels/{modelId}/analyzeResults/{resultId}/figures/{figureId}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### DocumentModels_GetAnalyzeResultPdf
+GET {{baseUrl}}/documentModels/{modelId}/analyzeResults/{resultId}/pdf
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### DocumentModels_AuthorizeModelCopy
+POST {{baseUrl}}/documentModels:authorizeCopy
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "modelId": "string",
+  "description": "string",
+  "tags": {}
+}
+
+### DocumentModels_BuildModel
+POST {{baseUrl}}/documentModels:build
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "modelId": "string",
+  "description": "string",
+  "buildMode": "template",
+  "azureBlobSource": {
+    "containerUrl": "string",
+    "prefix": "string"
+  },
+  "azureBlobFileListSource": {
+    "containerUrl": "string",
+    "fileList": "string"
+  },
+  "tags": {},
+  "maxTrainingHours": 0.5,
+  "allowOverwrite": false
+}
+
+### DocumentModels_ComposeModel
+POST {{baseUrl}}/documentModels:compose
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "modelId": "sample-modelId",
+  "description": "sample-description",
+  "classifierId": "sample-classifierId",
+  "docTypes": {}
+}
+
+### MiscellaneousOperations_GetResourceDetails
+GET {{baseUrl}}/info
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### MiscellaneousOperations_ListOperations
+GET {{baseUrl}}/operations
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### MiscellaneousOperations_GetOperation
+GET {{baseUrl}}/operations/{operationId}
+Content-Type: application/json
+api-key: {{apiKey}}

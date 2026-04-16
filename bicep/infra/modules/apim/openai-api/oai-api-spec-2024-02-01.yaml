@@ -441,7 +441,7 @@ paths:
               model: chat
               messages:
                 - role: user
-                  content: Hello! my name is Zaki and I'm asking about distance between the moon and earth
+                  content: Hello! my name is Smarty and I'm asking about distance between the moon and earth
       responses:
         '200':
           description: OK

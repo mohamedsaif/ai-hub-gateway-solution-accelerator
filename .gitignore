@@ -404,6 +404,7 @@ local/**/*
 
 .debug
 .git*
+!.github/
 .vscode
 **/__azurite_db*__.json
 **/__blobstorage__
