@@ -412,6 +412,7 @@ local/**/*
 **/local.settings.json
 **/test
 **/package-lock.json
+!/package-lock.json
 **/.vscode
 **/*.local.parameters.json
 infra/usecase-onboarding/samples/financial-assistant-usecase-local.sh
