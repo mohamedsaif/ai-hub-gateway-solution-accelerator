@@ -1,0 +1,562 @@
+# Contract Tests: Azure OpenAI API (v2024-05-01-preview)
+# Auto-generated from: bicep/infra/modules/apim\openai-api\oai-api-spec-2024-05-01-preview.yaml
+# Run with VS Code REST Client or httpYac
+
+@baseUrl = {{openai_api_base_url}}
+@apiKey = ""
+
+### Creates a completion for the provided prompt, parameters and chosen model.
+POST {{baseUrl}}/deployments/{deployment-id}/completions
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "prompt": "Negate the following sentence.The price for bubblegum increased on thursday.\n\n Negated Sentence:",
+  "max_tokens": 50
+}
+
+### Get a vector representation of a given input that can be easily consumed by machine learning models and algorithms.
+POST {{baseUrl}}/deployments/{deployment-id}/embeddings?api-version=2024-05-01-preview
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "input": "APIM love OpenAI"
+}
+
+### Creates a completion for the chat message
+POST {{baseUrl}}/deployments/{deployment-id}/chat/completions?api-version=2024-05-01-preview
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "model": "chat",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful assistant that responds in Markdown. Help me with my math homework!"
+    },
+    {
+      "role": "user",
+      "content": "How to calculate the distance between earth and moon?"
+    }
+  ]
+}
+
+### Transcribes audio into the input language.
+POST {{baseUrl}}/deployments/{deployment-id}/audio/transcriptions
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{}
+
+### Transcribes and translates input audio into English text.
+POST {{baseUrl}}/deployments/{deployment-id}/audio/translations
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{}
+
+### Generates audio from the input text.
+POST {{baseUrl}}/deployments/{deployment-id}/audio/speech?api-version=2024-05-01-preview
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{}
+
+### Generates a batch of images from a text caption on a given DALLE model deployment
+POST {{baseUrl}}/deployments/{deployment-id}/images/generations?api-version=2024-05-01-preview
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "prompt": "a corgi in a field",
+  "n": 1,
+  "size": "1024x1024",
+  "response_format": "url",
+  "user": "user123456",
+  "quality": "standard",
+  "style": "vivid"
+}
+
+### Returns a list of assistants. [Assistants]
+GET {{baseUrl}}/assistants
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Create an assistant with a model and instructions. [Assistants]
+POST {{baseUrl}}/assistants
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "model": {},
+  "name": "string",
+  "description": "string",
+  "instructions": "string",
+  "tools": [
+    {
+      "type": "code_interpreter"
+    }
+  ],
+  "tool_resources": {
+    "code_interpreter": {
+      "file_ids": [
+        "string"
+      ]
+    },
+    "file_search": {
+      "vector_store_ids": [
+        "string"
+      ],
+      "vector_stores": [
+        {
+          "file_ids": [
+            "string"
+          ],
+          "metadata": {}
+        }
+      ]
+    }
+  },
+  "metadata": {},
+  "temperature": 1,
+  "top_p": 1,
+  "response_format": {}
+}
+
+### Retrieves an assistant. [Assistants]
+GET {{baseUrl}}/assistants/{assistant_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Modifies an assistant. [Assistant]
+POST {{baseUrl}}/assistants/{assistant_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "model": {},
+  "name": "string",
+  "description": "string",
+  "instructions": "string",
+  "tools": [
+    {
+      "type": "code_interpreter"
+    }
+  ],
+  "tool_resources": {
+    "code_interpreter": {
+      "file_ids": [
+        "string"
+      ]
+    },
+    "file_search": {
+      "vector_store_ids": [
+        "string"
+      ]
+    }
+  },
+  "metadata": {},
+  "temperature": 1,
+  "top_p": 1,
+  "response_format": {}
+}
+
+### Delete an assistant. [Assistants]
+DELETE {{baseUrl}}/assistants/{assistant_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Create a thread. [Assistants]
+POST {{baseUrl}}/threads
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "string",
+      "attachments": [
+        {
+          "file_id": "string",
+          "tools": [
+            {
+              "type": "code_interpreter"
+            }
+          ]
+        }
+      ],
+      "metadata": {}
+    }
+  ],
+  "tool_resources": {
+    "code_interpreter": {
+      "file_ids": [
+        "string"
+      ]
+    },
+    "file_search": {
+      "vector_store_ids": [
+        "string"
+      ],
+      "vector_stores": [
+        {
+          "file_ids": [
+            "string"
+          ],
+          "metadata": {}
+        }
+      ]
+    }
+  },
+  "metadata": {}
+}
+
+### Retrieves a thread. [Assistants]
+GET {{baseUrl}}/threads/{thread_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Modifies a thread. [Assistants]
+POST {{baseUrl}}/threads/{thread_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "tool_resources": {
+    "code_interpreter": {
+      "file_ids": [
+        "string"
+      ]
+    },
+    "file_search": {
+      "vector_store_ids": [
+        "string"
+      ]
+    }
+  },
+  "metadata": {}
+}
+
+### Delete a thread. [Assistants]
+DELETE {{baseUrl}}/threads/{thread_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Returns a list of messages for a given thread. [Assistants]
+GET {{baseUrl}}/threads/{thread_id}/messages
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Create a message. [Assistants]
+POST {{baseUrl}}/threads/{thread_id}/messages
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "role": "user",
+  "content": "string",
+  "attachments": [
+    {
+      "file_id": "string",
+      "tools": [
+        {
+          "type": "code_interpreter"
+        }
+      ]
+    }
+  ],
+  "metadata": {}
+}
+
+### Retrieve a message. [Assistants]
+GET {{baseUrl}}/threads/{thread_id}/messages/{message_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Modifies a message. [Assistants]
+POST {{baseUrl}}/threads/{thread_id}/messages/{message_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "metadata": {}
+}
+
+### Create a thread and run it in one request. [Assistants]
+POST {{baseUrl}}/threads/runs
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "assistant_id": "string",
+  "thread": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "string",
+        "attachments": [
+          {
+            "file_id": "string",
+            "tools": [
+              {
+                "type": "code_interpreter"
+              }
+            ]
+          }
+        ],
+        "metadata": {}
+      }
+    ],
+    "tool_resources": {
+      "code_interpreter": {
+        "file_ids": [
+          "string"
+        ]
+      },
+      "file_search": {
+        "vector_store_ids": [
+          "string"
+        ],
+        "vector_stores": [
+          {
+            "file_ids": [
+              "string"
+            ],
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    "metadata": {}
+  },
+  "model": "string",
+  "instructions": "string",
+  "tools": [
+    {
+      "type": "code_interpreter"
+    }
+  ],
+  "tool_resources": {
+    "code_interpreter": {
+      "file_ids": [
+        "string"
+      ]
+    },
+    "file_search": {
+      "vector_store_ids": [
+        "string"
+      ]
+    }
+  },
+  "metadata": {},
+  "temperature": 1,
+  "top_p": 1,
+  "stream": true,
+  "max_prompt_tokens": 0,
+  "max_completion_tokens": 0,
+  "truncation_strategy": {
+    "type": "auto",
+    "last_messages": 0
+  },
+  "tool_choice": {},
+  "response_format": {}
+}
+
+### Returns a list of runs belonging to a thread. [Assistants]
+GET {{baseUrl}}/threads/{thread_id}/runs
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Create a run. [Assistants]
+POST {{baseUrl}}/threads/{thread_id}/runs
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "assistant_id": "string",
+  "model": "string",
+  "instructions": "string",
+  "additional_instructions": "string",
+  "additional_messages": [
+    {
+      "role": "user",
+      "content": "string",
+      "attachments": [
+        {
+          "file_id": "string",
+          "tools": [
+            {
+              "type": "code_interpreter"
+            }
+          ]
+        }
+      ],
+      "metadata": {}
+    }
+  ],
+  "tools": [
+    {
+      "type": "code_interpreter"
+    }
+  ],
+  "metadata": {},
+  "temperature": 1,
+  "top_p": 1,
+  "stream": true,
+  "max_prompt_tokens": 0,
+  "max_completion_tokens": 0,
+  "truncation_strategy": {
+    "type": "auto",
+    "last_messages": 0
+  },
+  "tool_choice": {},
+  "response_format": {}
+}
+
+### Retrieves a run. [Assistants]
+GET {{baseUrl}}/threads/{thread_id}/runs/{run_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Modifies a run. [Assistants]
+POST {{baseUrl}}/threads/{thread_id}/runs/{run_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "metadata": {}
+}
+
+### When a run has the `status: "requires_action"` and `required_action.type` is `submit_tool_outputs`, this endpoint can be used to submit the outputs from the tool calls once they're all completed. All outputs must be submitted in a single request.
+ [Assistants]
+POST {{baseUrl}}/threads/{thread_id}/runs/{run_id}/submit_tool_outputs
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "tool_outputs": [
+    {
+      "tool_call_id": "string",
+      "output": "string"
+    }
+  ],
+  "stream": true
+}
+
+### Cancels a run that is `in_progress`. [Assistants]
+POST {{baseUrl}}/threads/{thread_id}/runs/{run_id}/cancel
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{}
+
+### Returns a list of run steps belonging to a run. [Assistants]
+GET {{baseUrl}}/threads/{thread_id}/runs/{run_id}/steps
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Retrieves a run step. [Assistants]
+GET {{baseUrl}}/threads/{thread_id}/runs/{run_id}/steps/{step_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Returns a list of vector stores. [Vector Stores]
+GET {{baseUrl}}/vector_stores
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Create a vector store. [Vector Stores]
+POST {{baseUrl}}/vector_stores
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "file_ids": [
+    "string"
+  ],
+  "name": "string",
+  "expires_after": {
+    "anchor": "last_active_at",
+    "days": 0
+  },
+  "metadata": {}
+}
+
+### Retrieves a vector store. [Vector Stores]
+GET {{baseUrl}}/vector_stores/{vector_store_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Modifies a vector store. [Vector Stores]
+POST {{baseUrl}}/vector_stores/{vector_store_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "name": "string",
+  "expires_after": {
+    "anchor": "last_active_at",
+    "days": 0
+  },
+  "metadata": {}
+}
+
+### Delete a vector store. [Vector Stores]
+DELETE {{baseUrl}}/vector_stores/{vector_store_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Returns a list of vector store files. [Vector Stores]
+GET {{baseUrl}}/vector_stores/{vector_store_id}/files
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Create a vector store file by attaching a [File](/docs/api-reference/files) to a [vector store](/docs/api-reference/vector-stores/object). [Vector Stores]
+POST {{baseUrl}}/vector_stores/{vector_store_id}/files
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "file_id": "string"
+}
+
+### Retrieves a vector store file. [Vector Stores]
+GET {{baseUrl}}/vector_stores/{vector_store_id}/files/{file_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Delete a vector store file. This will remove the file from the vector store but the file itself will not be deleted. To delete the file, use the [delete file](/docs/api-reference/files/delete) endpoint. [Vector Stores]
+DELETE {{baseUrl}}/vector_stores/{vector_store_id}/files/{file_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Create a vector store file batch. [Vector Stores]
+POST {{baseUrl}}/vector_stores/{vector_store_id}/file_batches
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "file_ids": [
+    "string"
+  ]
+}
+
+### Retrieves a vector store file batch. [Vector Stores]
+GET {{baseUrl}}/vector_stores/{vector_store_id}/file_batches/{batch_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Cancel a vector store file batch. This attempts to cancel the processing of files in this batch as soon as possible. [Vector Stores]
+POST {{baseUrl}}/vector_stores/{vector_store_id}/file_batches/{batch_id}/cancel
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{}
+
+### Returns a list of vector store files in a batch. [Vector Stores]
+GET {{baseUrl}}/vector_stores/{vector_store_id}/file_batches/{batch_id}/files
+Content-Type: application/json
+api-key: {{apiKey}}

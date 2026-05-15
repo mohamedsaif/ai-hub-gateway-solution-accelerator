@@ -1,0 +1,18 @@
+{
+  "name": "citadel-governance-hub-specs",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Spec-driven development tooling for Citadel Governance Hub",
+  "scripts": {
+    "lint:specs": "spectral lint bicep/infra/modules/apim/ai-model-inference/*.yaml bicep/infra/modules/apim/ai-search-api/*.yaml bicep/infra/modules/apim/doc-intel-api/*.yaml bicep/infra/modules/apim/translator-api/*.yaml bicep/infra/modules/apim/universal-llm-api/*.yaml bicep/infra/modules/apim/openai-api/OpenAI-Import.openapi.yaml bicep/infra/modules/apim/openai-api/oai-api-spec-2024-02-01.yaml bicep/infra/modules/apim/openai-api/oai-api-spec-2024-05-01-preview.yaml bicep/infra/modules/apim/openai-api/oai-api-spec-2024-06-01.yaml --ignore-unknown-format --fail-severity error",
+    "lint:specs:warn": "spectral lint \"bicep/infra/modules/apim/**/*.yaml\" --ignore-unknown-format",
+    "lint:specs:all": "spectral lint \"bicep/infra/modules/apim/**/*.yaml\" --ignore-unknown-format --fail-severity error",
+    "lint:spec": "spectral lint",
+    "diff:spec": "oasdiff breaking --fail-on ERR",
+    "generate:tests": "python scripts/generate-contract-tests.py",
+    "validate": "npm run lint:specs"
+  },
+  "devDependencies": {
+    "@stoplight/spectral-cli": "^6.14.0"
+  }
+}

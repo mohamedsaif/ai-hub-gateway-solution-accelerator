@@ -1,0 +1,91 @@
+# Spectral OpenAPI Linting Rules for Citadel Governance Hub
+# https://docs.stoplight.io/docs/spectral/
+#
+# These rules apply to all API specs under bicep/infra/modules/apim/.
+# Many specs are imported from vendors (OpenAI, Azure Cognitive Services)
+# and contain pre-existing schema issues. Rules are tuned to catch
+# structural/governance problems without failing on vendor quirks.
+
+extends:
+  - "spectral:oas"
+
+rules:
+  # ── Relaxed built-in rules for vendor-imported specs ──────────────
+
+  # Vendor specs use OAS 3.1 features (e.g. type: "null") in 3.0 docs
+  oas3-schema: warn
+  oas3-valid-media-example: warn
+  oas3-valid-schema-example: warn
+  oas3-unused-component: off
+  oas3-server-variables: warn
+  array-items: warn
+
+  # ── Catch unresolvable $ref in vendor specs ───────────────────────
+  # Note: invalid-ref is not a configurable rule name in Spectral;
+  # unresolvable refs are reported as parser errors and cannot be suppressed.
+  # If vendor specs have broken $refs, exclude them via overrides below.
+
+  # APIM replaces server URLs at deploy time
+  oas3-api-servers: warn
+
+  # Many APIM-imported specs omit tag descriptions
+  openapi-tags: off
+
+  # ── Core Quality (enforced) ───────────────────────────────────────
+
+  info-description: warn
+  info-contact: warn
+  operation-operationId: error
+  operation-description: warn
+  operation-success-response: error
+
+  # ── Custom Citadel Governance Rules ───────────────────────────────
+
+  citadel-info-version-required:
+    description: "API specs must include a version in info.version"
+    severity: error
+    given: "$.info"
+    then:
+      field: "version"
+      function: truthy
+
+  citadel-no-localhost-servers:
+    description: "Server URLs must not reference localhost"
+    severity: error
+    given: "$.servers[*].url"
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: "localhost"
+
+  citadel-paths-not-empty:
+    description: "API specs must define at least one path"
+    severity: error
+    given: "$"
+    then:
+      field: "paths"
+      function: truthy
+
+  citadel-operation-tags:
+    description: "Operations should be tagged for API Center categorization"
+    severity: warn
+    given: "$.paths[*][get,post,put,patch,delete]"
+    then:
+      field: "tags"
+      function: truthy
+
+  citadel-response-schema:
+    description: "Success responses should define a schema or reference"
+    severity: warn
+    given: "$.paths[*][get,post,put,patch,delete].responses[200,201].content.application/json"
+    then:
+      field: "schema"
+      function: truthy
+
+# ── Overrides for vendor-imported specs with missing $ref targets ──
+overrides:
+  - files:
+      - "bicep/infra/modules/apim/openai-api/oai-api-spec-2024-10-21.yaml"
+    rules:
+      operation-operationId: warn
+      operation-success-response: warn

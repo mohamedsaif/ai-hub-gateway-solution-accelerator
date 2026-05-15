@@ -61,6 +61,8 @@ At a high level, the accelerator includes:
 - [src/usage-ingestion-logicapp](./src/usage-ingestion-logicapp): Logic App workflows for processing usage/log streams and other governance workflows.
 - [validation](./validation): Jupyter notebooks for post-deployment validation and onboarding.
 - [guides](./guides): operational and architecture documentation.
+- [.spectral.yaml](./.spectral.yaml): OpenAPI linting rules for spec-driven API governance.
+- [.github/workflows](./.github/workflows): CI pipelines for spec validation and breaking change detection.
 
 ## 🏗️ Architecture Overview
 
@@ -311,6 +313,7 @@ Master AI Citadel Governance Hub implementation and operations with our detailed
 
 | Guide | Description |
 |-------|-------------|
+| [**🆕 Spec-Driven Development**](./guides/spec-driven-development.md) | API spec governance, linting, breaking change detection, and contribution workflow |
 | [**🆕 LLM Routing Architecture**](./guides/llm-routing-architecture.md) | Technical dive into LLM model and backend routing logic |
 | [**🆕 LLM Backend Onboarding Guide**](./guides/LLM-Backend-Onboarding-Guide.md) | How to onboard LLM backends (Azure OpenAI, Foundry, external providers) with dynamic routing and load balancing |
 | [**🆕 Throttling Events Handling**](./guides/throttling-events-handling.md) | Monitor and handle throttling events per use case, deployment, and other dimensions |

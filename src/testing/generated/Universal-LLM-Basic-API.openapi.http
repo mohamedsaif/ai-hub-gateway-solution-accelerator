@@ -1,0 +1,84 @@
+# Contract Tests: Inference-api (v1.0)
+# Auto-generated from: bicep/infra/modules/apim\universal-llm-api\Universal-LLM-Basic-API.openapi.yaml
+# Run with VS Code REST Client or httpYac
+
+@baseUrl = {{universal_llm_api_base_url}}
+@apiKey = ""
+
+### Gets chat completions for the provided chat messages.
+POST {{baseUrl}}/chat/completions?api-version=2024-05-01-preview
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "model": "gpt-4o",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful assistant"
+    },
+    {
+      "role": "user",
+      "content": "How are you?"
+    }
+  ],
+  "max_tokens": 50
+}
+
+### Return the embedding vectors for given text prompts.
+POST {{baseUrl}}/embeddings?api-version=2024-05-01-preview
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "model": "text-embedding-ada-002",
+  "input": "How are you?"
+}
+
+### Return the embedding vectors for given images.
+POST {{baseUrl}}/images/embeddings?api-version=2024-05-01-preview
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "input": [
+    {
+      "image": "string",
+      "text": "string"
+    }
+  ],
+  "dimensions": 0,
+  "encoding_format": {},
+  "input_type": {},
+  "model": "string"
+}
+
+### Generates an image based on a text or image prompt.
+POST {{baseUrl}}/images/generations?api-version=2024-05-01-preview
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "prompt": "string",
+  "negative_prompt": "string",
+  "image_prompt": {
+    "image": "string",
+    "strength": 1
+  },
+  "size": {},
+  "output_format": "png",
+  "quality": "standard",
+  "n": 1,
+  "model": "string",
+  "seed": 0
+}
+
+### Returns information about the AI model deployed.
+GET {{baseUrl}}/info?api-version=2024-05-01-preview
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Deployments
+GET {{baseUrl}}/deployments
+Content-Type: application/json
+api-key: {{apiKey}}

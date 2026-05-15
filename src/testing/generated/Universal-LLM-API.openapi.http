@@ -1,0 +1,1118 @@
+# Contract Tests: Universal-LLM-API (v1.0)
+# Auto-generated from: bicep/infra/modules/apim\universal-llm-api\Universal-LLM-API.openapi.yaml
+# Run with VS Code REST Client or httpYac
+
+@baseUrl = {{universal_llm_api_base_url}}
+@apiKey = ""
+
+### Returns a list of assistants. [Assistants]
+GET {{baseUrl}}/assistants
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Create an assistant with a model and instructions. [Assistants]
+POST {{baseUrl}}/assistants
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "model": "gpt-4o",
+  "name": "string",
+  "description": "string",
+  "instructions": "string",
+  "reasoning_effort": "medium",
+  "tools": [
+    {
+      "type": "code_interpreter"
+    }
+  ],
+  "tool_resources": {
+    "code_interpreter": {
+      "file_ids": [
+        "string"
+      ]
+    },
+    "file_search": {
+      "vector_store_ids": [
+        "string"
+      ],
+      "vector_stores": [
+        {
+          "file_ids": [
+            "string"
+          ],
+          "chunking_strategy": {
+            "type": "auto"
+          },
+          "metadata": {}
+        }
+      ]
+    }
+  },
+  "metadata": {},
+  "temperature": 1,
+  "top_p": 1,
+  "response_format": {}
+}
+
+### Retrieves an assistant. [Assistants]
+GET {{baseUrl}}/assistants/{assistant_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Modifies an assistant. [Assistants]
+POST {{baseUrl}}/assistants/{assistant_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "model": {},
+  "reasoning_effort": "medium",
+  "name": "string",
+  "description": "string",
+  "instructions": "string",
+  "tools": [
+    {
+      "type": "code_interpreter"
+    }
+  ],
+  "tool_resources": {
+    "code_interpreter": {
+      "file_ids": [
+        "string"
+      ]
+    },
+    "file_search": {
+      "vector_store_ids": [
+        "string"
+      ]
+    }
+  },
+  "metadata": {},
+  "temperature": 1,
+  "top_p": 1,
+  "response_format": {}
+}
+
+### Delete an assistant. [Assistants]
+DELETE {{baseUrl}}/assistants/{assistant_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Generates audio from the input text. [Audio]
+POST {{baseUrl}}/audio/speech
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "model": {},
+  "input": "string",
+  "instructions": "string",
+  "voice": "ash",
+  "response_format": "mp3",
+  "speed": 1
+}
+
+### Transcribes audio into the input language. [Audio]
+POST {{baseUrl}}/audio/transcriptions
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{}
+
+### Translates audio into English. [Audio]
+POST {{baseUrl}}/audio/translations
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{}
+
+### List your organization's batches. [Batch]
+GET {{baseUrl}}/batches
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Creates and executes a batch from an uploaded file of requests [Batch]
+POST {{baseUrl}}/batches
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "input_file_id": "string",
+  "endpoint": "/v1/responses",
+  "completion_window": "24h",
+  "metadata": {}
+}
+
+### Retrieves a batch. [Batch]
+GET {{baseUrl}}/batches/{batch_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Cancels an in-progress batch. [Batch]
+POST {{baseUrl}}/batches/{batch_id}/cancel
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{}
+
+### List stored Chat Completions. [Chat]
+GET {{baseUrl}}/chat/completions
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Creates a model response for the given chat conversation. [Chat]
+POST {{baseUrl}}/chat/completions
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "model": "gpt-4o",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful assistant"
+    },
+    {
+      "role": "user",
+      "content": "How are you?"
+    }
+  ],
+  "max_tokens": 50
+}
+
+### Get a stored chat completion. [Chat]
+GET {{baseUrl}}/chat/completions/{completion_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Modify a stored chat completion. [Chat]
+POST {{baseUrl}}/chat/completions/{completion_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "metadata": {}
+}
+
+### Delete a stored chat completion. [Chat]
+DELETE {{baseUrl}}/chat/completions/{completion_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Get the messages in a stored chat completion. [Chat]
+GET {{baseUrl}}/chat/completions/{completion_id}/messages
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Creates a completion for the provided prompt and parameters. [Completions]
+POST {{baseUrl}}/completions
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "model": "gpt-3.5-turbo-instruct",
+  "prompt": "Say this is a test",
+  "max_tokens": 7
+}
+
+### Creates an embedding vector representing the input text. [Embeddings]
+POST {{baseUrl}}/embeddings
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "model": "text-embedding-ada-002",
+  "input": "How are you?"
+}
+
+### List evaluations for a project. [Evals]
+GET {{baseUrl}}/evals
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Create the structure of an evaluation that can be used to test a model's performance. [Evals]
+POST {{baseUrl}}/evals
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "name": "string",
+  "metadata": {},
+  "data_source_config": {
+    "type": "custom",
+    "item_schema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"name\": {\"type\": \"string\"},\n    \"age\": {\"type\": \"integer\"}\n  },\n  \"required\": [\"name\", \"age\"]\n}\n",
+    "include_sample_schema": false
+  },
+  "testing_criteria": [
+    {
+      "type": "label_model",
+      "name": "string",
+      "model": "string",
+      "input": [
+        {
+          "role": "string",
+          "content": "string"
+        }
+      ],
+      "labels": [
+        "string"
+      ],
+      "passing_labels": [
+        "string"
+      ]
+    }
+  ]
+}
+
+### Get an evaluation by ID. [Evals]
+GET {{baseUrl}}/evals/{eval_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Update certain properties of an evaluation. [Evals]
+POST {{baseUrl}}/evals/{eval_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "name": "string",
+  "metadata": {}
+}
+
+### Delete an evaluation. [Evals]
+DELETE {{baseUrl}}/evals/{eval_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Get a list of runs for an evaluation. [Evals]
+GET {{baseUrl}}/evals/{eval_id}/runs
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Create a new evaluation run. [Evals]
+POST {{baseUrl}}/evals/{eval_id}/runs
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "name": "string",
+  "metadata": {},
+  "data_source": {
+    "type": "jsonl",
+    "source": {
+      "type": "file_content",
+      "content": [
+        {
+          "item": {},
+          "sample": {}
+        }
+      ]
+    }
+  }
+}
+
+### Get an evaluation run by ID. [Evals]
+GET {{baseUrl}}/evals/{eval_id}/runs/{run_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Cancel an ongoing evaluation run. [Evals]
+POST {{baseUrl}}/evals/{eval_id}/runs/{run_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{}
+
+### Delete an eval run. [Evals]
+DELETE {{baseUrl}}/evals/{eval_id}/runs/{run_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Get a list of output items for an evaluation run. [Evals]
+GET {{baseUrl}}/evals/{eval_id}/runs/{run_id}/output_items
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Get an evaluation run output item by ID. [Evals]
+GET {{baseUrl}}/evals/{eval_id}/runs/{run_id}/output_items/{output_item_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Returns a list of files. [Files]
+GET {{baseUrl}}/files
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Upload a file that can be used across various endpoints. [Files]
+POST {{baseUrl}}/files
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{}
+
+### Returns information about a specific file. [Files]
+GET {{baseUrl}}/files/{file_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Delete a file. [Files]
+DELETE {{baseUrl}}/files/{file_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Returns the contents of the specified file. [Files]
+GET {{baseUrl}}/files/{file_id}/content
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### List fine-tuning checkpoint permissions. [Fine-tuning]
+GET {{baseUrl}}/fine_tuning/checkpoints/{fine_tuned_model_checkpoint}/permissions
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Create fine-tuning checkpoint permission. [Fine-tuning]
+POST {{baseUrl}}/fine_tuning/checkpoints/{fine_tuned_model_checkpoint}/permissions
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "project_ids": [
+    "string"
+  ]
+}
+
+### Delete fine-tuning checkpoint permission. [Fine-tuning]
+DELETE {{baseUrl}}/fine_tuning/checkpoints/{fine_tuned_model_checkpoint}/permissions/{permission_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### List your organization's fine-tuning jobs [Fine-tuning]
+GET {{baseUrl}}/fine_tuning/jobs
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Creates a fine-tuning job which begins the process of creating a new model from a given dataset. [Fine-tuning]
+POST {{baseUrl}}/fine_tuning/jobs
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "model": "gpt-4o-mini",
+  "training_file": "file-abc123",
+  "hyperparameters": {
+    "batch_size": "auto",
+    "learning_rate_multiplier": "auto",
+    "n_epochs": "auto"
+  },
+  "suffix": null,
+  "validation_file": "file-abc123",
+  "integrations": [
+    {
+      "type": {},
+      "wandb": {
+        "project": "my-wandb-project",
+        "name": "string",
+        "entity": "string",
+        "tags": [
+          "custom-tag"
+        ]
+      }
+    }
+  ],
+  "seed": 42,
+  "method": {
+    "type": "supervised",
+    "supervised": {
+      "hyperparameters": {
+        "batch_size": "auto",
+        "learning_rate_multiplier": "auto",
+        "n_epochs": "auto"
+      }
+    },
+    "dpo": {
+      "hyperparameters": {
+        "beta": "auto",
+        "batch_size": "auto",
+        "learning_rate_multiplier": "auto",
+        "n_epochs": "auto"
+      }
+    }
+  },
+  "metadata": {}
+}
+
+### Get info about a fine-tuning job. [Fine-tuning]
+GET {{baseUrl}}/fine_tuning/jobs/{fine_tuning_job_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Immediately cancel a fine-tune job. [Fine-tuning]
+POST {{baseUrl}}/fine_tuning/jobs/{fine_tuning_job_id}/cancel
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{}
+
+### List checkpoints for a fine-tuning job. [Fine-tuning]
+GET {{baseUrl}}/fine_tuning/jobs/{fine_tuning_job_id}/checkpoints
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Get status updates for a fine-tuning job. [Fine-tuning]
+GET {{baseUrl}}/fine_tuning/jobs/{fine_tuning_job_id}/events
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Creates an edited or extended image given one or more source images and
+a prompt. [Images]
+POST {{baseUrl}}/images/edits
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{}
+
+### Creates an image given a prompt. [Images]
+POST {{baseUrl}}/images/generations
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "prompt": "A cute baby sea otter",
+  "model": "dall-e-2",
+  "n": 1,
+  "quality": "auto",
+  "response_format": "url",
+  "output_format": "png",
+  "output_compression": 100,
+  "size": "auto",
+  "moderation": "auto",
+  "background": "auto",
+  "style": "vivid",
+  "user": "user-1234"
+}
+
+### Creates a variation of a given image. [Images]
+POST {{baseUrl}}/images/variations
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{}
+
+### Lists the currently available models, and provides basic information
+about each one such as the owner and availability. [Models]
+GET {{baseUrl}}/models
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Retrieves a model instance, providing basic information about the model
+such as the owner and permissioning. [Models]
+GET {{baseUrl}}/models/{model}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Delete a fine-tuned model. [Models]
+DELETE {{baseUrl}}/models/{model}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Classifies if text and/or image inputs are potentially harmful. [Moderations]
+POST {{baseUrl}}/moderations
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "input": {},
+  "model": "omni-moderation-latest"
+}
+
+### Create an ephemeral API token for use in client-side applications with the
+Realtime API. [Realtime]
+POST {{baseUrl}}/realtime/sessions
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "modalities": {},
+  "model": "gpt-4o-realtime-preview",
+  "instructions": "string",
+  "voice": "ash",
+  "input_audio_format": "pcm16",
+  "output_audio_format": "pcm16",
+  "input_audio_transcription": {
+    "model": "string",
+    "language": "string",
+    "prompt": "string"
+  },
+  "turn_detection": {
+    "type": "server_vad",
+    "eagerness": "auto",
+    "threshold": 0,
+    "prefix_padding_ms": 0,
+    "silence_duration_ms": 0,
+    "create_response": true,
+    "interrupt_response": true
+  },
+  "input_audio_noise_reduction": null,
+  "tools": [
+    {
+      "type": "function",
+      "name": "string",
+      "description": "string",
+      "parameters": {}
+    }
+  ],
+  "tool_choice": "auto",
+  "temperature": 0.8,
+  "max_response_output_tokens": {}
+}
+
+### Create an ephemeral API token for use in client-side applications with the
+Realtime API specifically for realtime transcriptions. [Realtime]
+POST {{baseUrl}}/realtime/transcription_sessions
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "modalities": {},
+  "input_audio_format": "pcm16",
+  "input_audio_transcription": {
+    "model": "gpt-4o-transcribe",
+    "language": "string",
+    "prompt": "string"
+  },
+  "turn_detection": {
+    "type": "server_vad",
+    "eagerness": "auto",
+    "threshold": 0,
+    "prefix_padding_ms": 0,
+    "silence_duration_ms": 0,
+    "create_response": true,
+    "interrupt_response": true
+  },
+  "input_audio_noise_reduction": null,
+  "include": [
+    "string"
+  ]
+}
+
+### Creates a model response. [Responses]
+POST {{baseUrl}}/responses
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "model": "gpt-4o",
+  "input": "How are you?",
+  "stream": false
+}
+
+### Retrieves a model response with the given ID. [Responses]
+GET {{baseUrl}}/responses/{response_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Deletes a model response with the given ID. [Responses]
+DELETE {{baseUrl}}/responses/{response_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Returns a list of input items for a given response. [Responses]
+GET {{baseUrl}}/responses/{response_id}/input_items
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Create a thread. [Assistants]
+POST {{baseUrl}}/threads
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": {},
+      "attachments": [
+        {
+          "file_id": "string",
+          "tools": [
+            {
+              "type": "code_interpreter"
+            }
+          ]
+        }
+      ],
+      "metadata": {}
+    }
+  ],
+  "tool_resources": {
+    "code_interpreter": {
+      "file_ids": [
+        "string"
+      ]
+    },
+    "file_search": {
+      "vector_store_ids": [
+        "string"
+      ],
+      "vector_stores": [
+        {
+          "file_ids": [
+            "string"
+          ],
+          "chunking_strategy": {
+            "type": "auto"
+          },
+          "metadata": {}
+        }
+      ]
+    }
+  },
+  "metadata": {}
+}
+
+### Create a thread and run it in one request. [Assistants]
+POST {{baseUrl}}/threads/runs
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "assistant_id": "string",
+  "thread": {
+    "messages": [
+      {
+        "role": "user",
+        "content": {},
+        "attachments": [
+          {
+            "file_id": "string",
+            "tools": [
+              {
+                "type": "code_interpreter"
+              }
+            ]
+          }
+        ],
+        "metadata": {}
+      }
+    ],
+    "tool_resources": {
+      "code_interpreter": {
+        "file_ids": [
+          "string"
+        ]
+      },
+      "file_search": {
+        "vector_store_ids": [
+          "string"
+        ],
+        "vector_stores": [
+          {
+            "file_ids": [
+              "string"
+            ],
+            "chunking_strategy": {
+              "type": "auto"
+            },
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    "metadata": {}
+  },
+  "model": "gpt-4o",
+  "instructions": "string",
+  "tools": [
+    {
+      "type": "code_interpreter"
+    }
+  ],
+  "tool_resources": {
+    "code_interpreter": {
+      "file_ids": [
+        "string"
+      ]
+    },
+    "file_search": {
+      "vector_store_ids": [
+        "string"
+      ]
+    }
+  },
+  "metadata": {},
+  "temperature": 1,
+  "top_p": 1,
+  "stream": true,
+  "max_prompt_tokens": 0,
+  "max_completion_tokens": 0,
+  "truncation_strategy": {
+    "type": "auto",
+    "last_messages": 0
+  },
+  "tool_choice": {},
+  "parallel_tool_calls": true,
+  "response_format": {}
+}
+
+### Retrieves a thread. [Assistants]
+GET {{baseUrl}}/threads/{thread_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Modifies a thread. [Assistants]
+POST {{baseUrl}}/threads/{thread_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "tool_resources": {
+    "code_interpreter": {
+      "file_ids": [
+        "string"
+      ]
+    },
+    "file_search": {
+      "vector_store_ids": [
+        "string"
+      ]
+    }
+  },
+  "metadata": {}
+}
+
+### Delete a thread. [Assistants]
+DELETE {{baseUrl}}/threads/{thread_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Returns a list of messages for a given thread. [Assistants]
+GET {{baseUrl}}/threads/{thread_id}/messages
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Create a message. [Assistants]
+POST {{baseUrl}}/threads/{thread_id}/messages
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "role": "user",
+  "content": {},
+  "attachments": [
+    {
+      "file_id": "string",
+      "tools": [
+        {
+          "type": "code_interpreter"
+        }
+      ]
+    }
+  ],
+  "metadata": {}
+}
+
+### Retrieve a message. [Assistants]
+GET {{baseUrl}}/threads/{thread_id}/messages/{message_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Modifies a message. [Assistants]
+POST {{baseUrl}}/threads/{thread_id}/messages/{message_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "metadata": {}
+}
+
+### Deletes a message. [Assistants]
+DELETE {{baseUrl}}/threads/{thread_id}/messages/{message_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Returns a list of runs belonging to a thread. [Assistants]
+GET {{baseUrl}}/threads/{thread_id}/runs
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Create a run. [Assistants]
+POST {{baseUrl}}/threads/{thread_id}/runs
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "assistant_id": "string",
+  "model": "gpt-4o",
+  "reasoning_effort": "medium",
+  "instructions": "string",
+  "additional_instructions": "string",
+  "additional_messages": [
+    {
+      "role": "user",
+      "content": {},
+      "attachments": [
+        {
+          "file_id": "string",
+          "tools": [
+            {
+              "type": "code_interpreter"
+            }
+          ]
+        }
+      ],
+      "metadata": {}
+    }
+  ],
+  "tools": [
+    {
+      "type": "code_interpreter"
+    }
+  ],
+  "metadata": {},
+  "temperature": 1,
+  "top_p": 1,
+  "stream": true,
+  "max_prompt_tokens": 0,
+  "max_completion_tokens": 0,
+  "truncation_strategy": {
+    "type": "auto",
+    "last_messages": 0
+  },
+  "tool_choice": {},
+  "parallel_tool_calls": true,
+  "response_format": {}
+}
+
+### Retrieves a run. [Assistants]
+GET {{baseUrl}}/threads/{thread_id}/runs/{run_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Modifies a run. [Assistants]
+POST {{baseUrl}}/threads/{thread_id}/runs/{run_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "metadata": {}
+}
+
+### Cancels a run that is `in_progress`. [Assistants]
+POST {{baseUrl}}/threads/{thread_id}/runs/{run_id}/cancel
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{}
+
+### Returns a list of run steps belonging to a run. [Assistants]
+GET {{baseUrl}}/threads/{thread_id}/runs/{run_id}/steps
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Retrieves a run step. [Assistants]
+GET {{baseUrl}}/threads/{thread_id}/runs/{run_id}/steps/{step_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### When a run has the `status: "requires_action"` and `required_action. [Assistants]
+POST {{baseUrl}}/threads/{thread_id}/runs/{run_id}/submit_tool_outputs
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "tool_outputs": [
+    {
+      "tool_call_id": "string",
+      "output": "string"
+    }
+  ],
+  "stream": true
+}
+
+### Creates an intermediate Upload object that you can add Parts to. [Uploads]
+POST {{baseUrl}}/uploads
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "filename": "string",
+  "purpose": "assistants",
+  "bytes": 0,
+  "mime_type": "string"
+}
+
+### Cancels the Upload. [Uploads]
+POST {{baseUrl}}/uploads/{upload_id}/cancel
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{}
+
+### Completes the [Upload](/docs/api-reference/uploads/object). [Uploads]
+POST {{baseUrl}}/uploads/{upload_id}/complete
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "part_ids": [
+    "string"
+  ],
+  "md5": "string"
+}
+
+### Adds a Part to an Upload object. [Uploads]
+POST {{baseUrl}}/uploads/{upload_id}/parts
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{}
+
+### Returns a list of vector stores. [Vector stores]
+GET {{baseUrl}}/vector_stores
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Create a vector store. [Vector stores]
+POST {{baseUrl}}/vector_stores
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "file_ids": [
+    "string"
+  ],
+  "name": "string",
+  "expires_after": {
+    "anchor": "last_active_at",
+    "days": 0
+  },
+  "chunking_strategy": {
+    "type": "auto"
+  },
+  "metadata": {}
+}
+
+### Retrieves a vector store. [Vector stores]
+GET {{baseUrl}}/vector_stores/{vector_store_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Modifies a vector store. [Vector stores]
+POST {{baseUrl}}/vector_stores/{vector_store_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "name": "string",
+  "expires_after": {
+    "anchor": "last_active_at",
+    "days": 0
+  },
+  "metadata": {}
+}
+
+### Delete a vector store. [Vector stores]
+DELETE {{baseUrl}}/vector_stores/{vector_store_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Create a vector store file batch. [Vector stores]
+POST {{baseUrl}}/vector_stores/{vector_store_id}/file_batches
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "file_ids": [
+    "string"
+  ],
+  "chunking_strategy": {
+    "type": "auto"
+  },
+  "attributes": {}
+}
+
+### Retrieves a vector store file batch. [Vector stores]
+GET {{baseUrl}}/vector_stores/{vector_store_id}/file_batches/{batch_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Cancel a vector store file batch. [Vector stores]
+POST {{baseUrl}}/vector_stores/{vector_store_id}/file_batches/{batch_id}/cancel
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{}
+
+### Returns a list of vector store files in a batch. [Vector stores]
+GET {{baseUrl}}/vector_stores/{vector_store_id}/file_batches/{batch_id}/files
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Returns a list of vector store files. [Vector stores]
+GET {{baseUrl}}/vector_stores/{vector_store_id}/files
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Create a vector store file by attaching a File to a vector store. [Vector stores]
+POST {{baseUrl}}/vector_stores/{vector_store_id}/files
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "file_id": "string",
+  "chunking_strategy": {
+    "type": "auto"
+  },
+  "attributes": {}
+}
+
+### Retrieves a vector store file. [Vector stores]
+GET {{baseUrl}}/vector_stores/{vector_store_id}/files/{file_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Update attributes on a vector store file. [Vector stores]
+POST {{baseUrl}}/vector_stores/{vector_store_id}/files/{file_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "attributes": {}
+}
+
+### Delete a vector store file. [Vector stores]
+DELETE {{baseUrl}}/vector_stores/{vector_store_id}/files/{file_id}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Retrieve the parsed contents of a vector store file. [Vector stores]
+GET {{baseUrl}}/vector_stores/{vector_store_id}/files/{file_id}/content
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Search a vector store for relevant chunks based on a query and file
+attributes filter. [Vector stores]
+POST {{baseUrl}}/vector_stores/{vector_store_id}/search
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "query": {},
+  "rewrite_query": false,
+  "max_num_results": 10,
+  "filters": {
+    "type": "eq",
+    "key": "string",
+    "value": {}
+  },
+  "ranking_options": {
+    "ranker": "auto",
+    "score_threshold": 0
+  }
+}
+
+### Deployments
+GET {{baseUrl}}/deployments
+Content-Type: application/json
+api-key: {{apiKey}}

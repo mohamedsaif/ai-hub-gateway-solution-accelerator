@@ -1,0 +1,69 @@
+# Contract Tests: Azure OpenAI Service API (v2024-10-21)
+# Auto-generated from: bicep/infra/modules/apim\openai-api\oai-api-spec-2024-10-21.yaml
+# Run with VS Code REST Client or httpYac
+
+@baseUrl = {{openai_api_base_url}}
+@apiKey = ""
+
+### Creates a completion for the provided prompt, parameters and chosen model.
+POST {{baseUrl}}/deployments/{deployment-id}/completions
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "prompt": "Negate the following sentence.The price for bubblegum increased on thursday.\n\n Negated Sentence:",
+  "max_tokens": 50
+}
+
+### Get a vector representation of a given input that can be easily consumed by machine learning models and algorithms.
+POST {{baseUrl}}/deployments/{deployment-id}/embeddings?api-version=2024-10-21
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "input": "APIM love OpenAI"
+}
+
+### Creates a completion for the chat message
+POST {{baseUrl}}/deployments/{deployment-id}/chat/completions?api-version=2024-10-21
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "model": "chat",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful assistant that responds in Markdown. Help me with my math homework!"
+    },
+    {
+      "role": "user",
+      "content": "How to calculate the distance between earth and moon?"
+    }
+  ]
+}
+
+### Transcribes audio into the input language.
+POST {{baseUrl}}/deployments/{deployment-id}/audio/transcriptions
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{}
+
+### Transcribes and translates input audio into English text.
+POST {{baseUrl}}/deployments/{deployment-id}/audio/translations
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{}
+
+### Generates a batch of images from a text caption on a given DALLE model deployment
+POST {{baseUrl}}/deployments/{deployment-id}/images/generations
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "prompt": "a corgi in a field",
+  "n": 1,
+  "size": "1024x1024"
+}

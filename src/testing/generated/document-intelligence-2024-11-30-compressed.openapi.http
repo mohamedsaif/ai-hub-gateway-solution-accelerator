@@ -1,0 +1,207 @@
+# Contract Tests: Azure Document Intelligence (v1.0)
+# Auto-generated from: bicep/infra/modules/apim\doc-intel-api\document-intelligence-2024-11-30-compressed.openapi.yaml
+# Run with VS Code REST Client or httpYac
+
+@baseUrl = {{doc_intel_api_base_url}}
+@apiKey = ""
+
+### DocumentClassifiers_ListClassifiers
+GET {{baseUrl}}/documentClassifiers
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### DocumentClassifiers_GetClassifier
+GET {{baseUrl}}/documentClassifiers/{classifierId}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### DocumentClassifiers_DeleteClassifier
+DELETE {{baseUrl}}/documentClassifiers/{classifierId}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### DocumentClassifiers_ClassifyDocumentFromStream
+POST {{baseUrl}}/documentClassifiers/{classifierId}:analyze
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{}
+
+### DocumentClassifiers_CopyClassifierTo
+POST {{baseUrl}}/documentClassifiers/{classifierId}:copyTo
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "targetResourceId": "sample-targetResourceId",
+  "targetResourceRegion": "sample-targetResourceRegion",
+  "targetClassifierId": "sample-targetClassifierId",
+  "targetClassifierLocation": "sample-targetClassifierLocation",
+  "accessToken": "sample-accessToken",
+  "expirationDateTime": "sample-expirationDateTime"
+}
+
+### DocumentClassifiers_GetClassifyResult
+GET {{baseUrl}}/documentClassifiers/{classifierId}/analyzeResults/{resultId}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### DocumentClassifiers_AuthorizeClassifierCopy
+POST {{baseUrl}}/documentClassifiers:authorizeCopy
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "classifierId": "sample-classifierId",
+  "description": "sample-description",
+  "tags": {}
+}
+
+### DocumentClassifiers_BuildClassifier
+POST {{baseUrl}}/documentClassifiers:build
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "classifierId": "sample-classifierId",
+  "description": "sample-description",
+  "baseClassifierId": "sample-baseClassifierId",
+  "docTypes": {}
+}
+
+### DocumentModels_ListModels
+GET {{baseUrl}}/documentModels
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### DocumentModels_AnalyzeDocument
+POST {{baseUrl}}/documentModels/{modelId}:analyze
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{}
+
+### DocumentModels_AnalyzeBatchDocuments
+POST {{baseUrl}}/documentModels/{modelId}:analyzeBatch
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "azureBlobSource": {
+    "containerUrl": "sample-containerUrl",
+    "prefix": "sample-prefix"
+  },
+  "azureBlobFileListSource": {
+    "containerUrl": "sample-containerUrl",
+    "fileList": "sample-fileList"
+  },
+  "resultContainerUrl": "sample-resultContainerUrl"
+}
+
+### DocumentModels_GetModel
+GET {{baseUrl}}/documentModels/{modelId}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### DocumentModels_DeleteModel
+DELETE {{baseUrl}}/documentModels/{modelId}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### DocumentModels_CopyModelTo
+POST {{baseUrl}}/documentModels/{modelId}:copyTo
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "targetResourceId": "sample-targetResourceId",
+  "targetResourceRegion": "sample-targetResourceRegion",
+  "targetModelId": "sample-targetModelId",
+  "targetModelLocation": "sample-targetModelLocation",
+  "accessToken": "sample-accessToken",
+  "expirationDateTime": "sample-expirationDateTime"
+}
+
+### DocumentModels_ListAnalyzeBatchResults
+GET {{baseUrl}}/documentModels/{modelId}/analyzeBatchResults
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### DocumentModels_GetAnalyzeBatchResult
+GET {{baseUrl}}/documentModels/{modelId}/analyzeBatchResults/{resultId}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### DocumentModels_DeleteAnalyzeBatchResult
+DELETE {{baseUrl}}/documentModels/{modelId}/analyzeBatchResults/{resultId}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### DocumentModels_GetAnalyzeResult
+GET {{baseUrl}}/documentModels/{modelId}/analyzeResults/{resultId}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### DocumentModels_DeleteAnalyzeResult
+DELETE {{baseUrl}}/documentModels/{modelId}/analyzeResults/{resultId}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### DocumentModels_GetAnalyzeResultFigure
+GET {{baseUrl}}/documentModels/{modelId}/analyzeResults/{resultId}/figures/{figureId}
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### DocumentModels_GetAnalyzeResultPdf
+GET {{baseUrl}}/documentModels/{modelId}/analyzeResults/{resultId}/pdf
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### DocumentModels_AuthorizeModelCopy
+POST {{baseUrl}}/documentModels:authorizeCopy
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "modelId": "sample-modelId",
+  "description": "sample-description",
+  "tags": {}
+}
+
+### DocumentModels_BuildModel
+POST {{baseUrl}}/documentModels:build
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "modelId": "sample-modelId",
+  "description": "sample-description",
+  "buildMode": "template"
+}
+
+### DocumentModels_ComposeModel
+POST {{baseUrl}}/documentModels:compose
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "modelId": "sample-modelId",
+  "description": "sample-description",
+  "classifierId": "sample-classifierId",
+  "docTypes": {}
+}
+
+### MiscellaneousOperations_GetResourceDetails
+GET {{baseUrl}}/info
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### MiscellaneousOperations_ListOperations
+GET {{baseUrl}}/operations
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### MiscellaneousOperations_GetOperation
+GET {{baseUrl}}/operations/{operationId}
+Content-Type: application/json
+api-key: {{apiKey}}

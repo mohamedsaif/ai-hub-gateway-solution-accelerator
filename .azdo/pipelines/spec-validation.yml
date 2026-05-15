@@ -1,0 +1,83 @@
+# Spec-Driven Development — API Spec Validation (Azure DevOps)
+# Runs on PRs targeting main or citadel-v1 branches.
+# Lints OpenAPI specs with Spectral and detects breaking changes.
+
+trigger: none
+
+pr:
+  branches:
+    include:
+      - main
+      - citadel-v1
+  paths:
+    include:
+      - bicep/infra/modules/apim/**/*.yaml
+      - .spectral.yaml
+      - package.json
+
+pool:
+  vmImage: ubuntu-latest
+
+stages:
+  - stage: SpecValidation
+    displayName: API Spec Validation
+    jobs:
+      - job: LintSpecs
+        displayName: Lint OpenAPI Specs
+        steps:
+          - task: NodeTool@0
+            displayName: Setup Node.js
+            inputs:
+              versionSpec: '20.x'
+
+          - script: npm ci --ignore-scripts
+            displayName: Install dependencies
+
+          - script: npm run lint:specs
+            displayName: Run Spectral linting
+
+      - job: BreakingChanges
+        displayName: Detect Breaking Changes
+        steps:
+          - checkout: self
+            fetchDepth: 0
+
+          - script: |
+              curl -sSL https://raw.githubusercontent.com/Tufin/oasdiff/main/install.sh | sh
+            displayName: Install oasdiff
+
+          - script: |
+              SPEC_DIR="bicep/infra/modules/apim"
+              TARGET_BRANCH="origin/$(System.PullRequest.TargetBranch)"
+
+              echo "Comparing against: $TARGET_BRANCH"
+              EXIT_CODE=0
+
+              # Get list of changed spec files in this PR
+              CHANGED_SPECS=$(git diff --name-only $TARGET_BRANCH...HEAD -- "$SPEC_DIR/**/*.yaml" 2>/dev/null || echo "")
+
+              if [ -z "$CHANGED_SPECS" ]; then
+                echo "No spec files changed in this PR."
+                exit 0
+              fi
+
+              for spec in $CHANGED_SPECS; do
+                if git show "$TARGET_BRANCH:$spec" > /tmp/base_spec.yaml 2>/dev/null; then
+                  echo "Checking: $spec"
+                  if ! oasdiff breaking /tmp/base_spec.yaml "$spec" 2>/dev/null; then
+                    echo "##vso[task.logissue type=warning]Breaking changes detected in: $spec"
+                    EXIT_CODE=1
+                  fi
+                else
+                  echo "New spec (no base to compare): $spec"
+                fi
+              done
+
+              if [ $EXIT_CODE -ne 0 ]; then
+                echo "##vso[task.logissue type=error]Breaking changes detected in one or more API specs."
+              else
+                echo "No breaking changes detected."
+              fi
+
+              exit $EXIT_CODE
+            displayName: Check for breaking changes

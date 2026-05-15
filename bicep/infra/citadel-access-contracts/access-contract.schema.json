@@ -1,0 +1,168 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Citadel Access Contract Parameters",
+  "description": "Schema for validating Citadel Access Contract .bicepparam files. Defines the required structure for onboarding AI use cases to the APIM gateway.",
+  "type": "object",
+  "required": ["apim", "useCase", "apiNameMapping", "services"],
+  "properties": {
+    "apim": {
+      "type": "object",
+      "description": "APIM resource coordinates",
+      "required": ["subscriptionId", "resourceGroupName", "name"],
+      "properties": {
+        "subscriptionId": {
+          "type": "string",
+          "description": "Azure subscription ID where APIM is deployed",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$|^REPLACE$"
+        },
+        "resourceGroupName": {
+          "type": "string",
+          "description": "Resource group name containing the APIM instance",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "description": "APIM instance name",
+          "minLength": 1
+        }
+      }
+    },
+    "keyVault": {
+      "type": "object",
+      "description": "Target Key Vault for storing endpoint and API key secrets",
+      "required": ["subscriptionId", "resourceGroupName", "name"],
+      "properties": {
+        "subscriptionId": {
+          "type": "string"
+        },
+        "resourceGroupName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "useTargetAzureKeyVault": {
+      "type": "boolean",
+      "description": "Whether to use Azure Key Vault for storing secrets",
+      "default": true
+    },
+    "useCase": {
+      "type": "object",
+      "description": "Use case descriptor used in naming: <code>-<businessUnit>-<useCaseName>-<environment>",
+      "required": ["businessUnit", "useCaseName", "environment"],
+      "properties": {
+        "businessUnit": {
+          "type": "string",
+          "description": "Business unit abbreviation (e.g., HR, Sales, Security)",
+          "minLength": 1,
+          "pattern": "^[A-Za-z][A-Za-z0-9]*$"
+        },
+        "useCaseName": {
+          "type": "string",
+          "description": "Use case name (e.g., ChatAgent, Assistant, JwtAuth)",
+          "minLength": 1,
+          "pattern": "^[A-Za-z][A-Za-z0-9]*$"
+        },
+        "environment": {
+          "type": "string",
+          "description": "Target environment",
+          "enum": ["DEV", "STG", "PRD", "TST", "UAT"]
+        }
+      }
+    },
+    "apiNameMapping": {
+      "type": "object",
+      "description": "Map of service codes to their API names in APIM",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        },
+        "minItems": 1
+      }
+    },
+    "services": {
+      "type": "array",
+      "description": "Required AI services for this use case",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["code", "endpointSecretName", "apiKeySecretName"],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Service code matching a key in apiNameMapping (e.g., LLM, DOC, SEARCH)",
+            "minLength": 1
+          },
+          "endpointSecretName": {
+            "type": "string",
+            "description": "Key Vault secret name for the service endpoint URL",
+            "minLength": 1
+          },
+          "apiKeySecretName": {
+            "type": "string",
+            "description": "Key Vault secret name for the service API key",
+            "minLength": 1
+          },
+          "policyXml": {
+            "type": "string",
+            "description": "Custom APIM product policy XML content"
+          }
+        }
+      }
+    },
+    "productTerms": {
+      "type": "string",
+      "description": "Optional product terms shown to subscribers"
+    },
+    "useTargetFoundry": {
+      "type": "boolean",
+      "description": "Whether to create Azure AI Foundry connection",
+      "default": false
+    },
+    "foundry": {
+      "type": "object",
+      "description": "Azure AI Foundry configuration (required if useTargetFoundry is true)",
+      "properties": {
+        "subscriptionId": { "type": "string" },
+        "resourceGroupName": { "type": "string" },
+        "accountName": { "type": "string" },
+        "projectName": { "type": "string" }
+      }
+    },
+    "foundryConfig": {
+      "type": "object",
+      "description": "Foundry connection configuration options",
+      "properties": {
+        "connectionNamePrefix": { "type": "string" },
+        "deploymentInPath": { "type": "string", "enum": ["true", "false"] },
+        "isSharedToAll": { "type": "boolean" },
+        "inferenceAPIVersion": { "type": "string" },
+        "deploymentAPIVersion": { "type": "string" },
+        "staticModels": { "type": "array", "items": { "type": "string" } },
+        "listModelsEndpoint": { "type": "string" },
+        "getModelEndpoint": { "type": "string" },
+        "deploymentProvider": { "type": "string" },
+        "customHeaders": { "type": "object" },
+        "authConfig": { "type": "object" }
+      }
+    }
+  },
+  "if": {
+    "properties": { "useTargetFoundry": { "const": true } }
+  },
+  "then": {
+    "required": ["foundry"],
+    "properties": {
+      "foundry": {
+        "required": ["subscriptionId", "resourceGroupName", "accountName", "projectName"]
+      }
+    }
+  }
+}

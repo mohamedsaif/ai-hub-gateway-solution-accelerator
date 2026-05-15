@@ -1,0 +1,70 @@
+# Contract Tests: AI Model Inference API (v1.0)
+# Auto-generated from: bicep/infra/modules/apim\ai-model-inference\ai-model-inference-api-spec.yaml
+# Run with VS Code REST Client or httpYac
+
+@baseUrl = {{ai_model_inference_base_url}}
+@apiKey = ""
+
+### Get model information
+GET {{baseUrl}}/info?api-version=2024-05-01-preview
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Create chat completion
+POST {{baseUrl}}/chat/completions?api-version=2024-05-01-preview
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful assistant"
+    },
+    {
+      "role": "user",
+      "content": "Explain how distance between earth and the moon is calculated."
+    }
+  ],
+  "frequency_penalty": 0,
+  "presence_penalty": 0,
+  "max_tokens": 256,
+  "seed": 42,
+  "stop": "<|endoftext|>",
+  "stream": false,
+  "temperature": 0,
+  "top_p": 1,
+  "response_format": {
+    "type": "text"
+  }
+}
+
+### Create text embeddings
+POST {{baseUrl}}/embeddings?api-version=2024-05-01-preview
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "input": [
+    "This is a very good text"
+  ],
+  "input_type": "text",
+  "encoding_format": "float",
+  "dimensions": 1024
+}
+
+### Create image embeddings
+POST {{baseUrl}}/images/embeddings?api-version=2024-05-01-preview
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "input": [
+    {
+      "image": "string",
+      "text": "string"
+    }
+  ],
+  "dimensions": 0,
+  "encoding_format": "base64"
+}

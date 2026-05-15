@@ -1,0 +1,126 @@
+# Contract Tests: Azure Search Index (v1.0)
+# Auto-generated from: bicep/infra/modules/apim\ai-search-api\ai-search-api-spec.yaml
+# Run with VS Code REST Client or httpYac
+
+@baseUrl = {{ai_search_api_base_url}}
+@apiKey = ""
+
+### Documents_Count [Documents]
+GET {{baseUrl}}/indexes/{index-name}/docs/$count?api-version=2023-11-01
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Documents_SearchGet [Documents]
+GET {{baseUrl}}/indexes('{index-name}')/docs?api-version=2023-11-01
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Documents_SearchPost [Documents]
+POST {{baseUrl}}/indexes('{index-name}')/docs/search.post.search
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "count": true,
+  "facets": [
+    "string"
+  ],
+  "filter": "string",
+  "highlight": "string",
+  "highlightPostTag": "string",
+  "highlightPreTag": "string",
+  "minimumCoverage": 0,
+  "orderby": "string",
+  "queryType": "simple",
+  "scoringStatistics": "local",
+  "sessionId": "string",
+  "scoringParameters": [
+    "string"
+  ],
+  "scoringProfile": "string",
+  "search": "string",
+  "searchFields": "string",
+  "searchMode": "any",
+  "select": "string",
+  "skip": 0,
+  "top": 0,
+  "semanticConfiguration": "string",
+  "semanticErrorHandling": "partial",
+  "semanticMaxWaitInMilliseconds": 0,
+  "answers": "none",
+  "captions": "none",
+  "vectorQueries": [
+    {
+      "kind": "vector",
+      "k": 0,
+      "fields": "string",
+      "exhaustive": true
+    }
+  ],
+  "vectorFilterMode": "postFilter"
+}
+
+### Documents_Get [Documents]
+GET {{baseUrl}}/indexes('{index-name}')/docs('{key}')
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Documents_SuggestGet [Documents]
+GET {{baseUrl}}/indexes('{index-name}')/docs/search.suggest
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Documents_SuggestPost [Documents]
+POST {{baseUrl}}/indexes('{index-name}')/docs/search.post.suggest
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "filter": "string",
+  "fuzzy": true,
+  "highlightPostTag": "string",
+  "highlightPreTag": "string",
+  "minimumCoverage": 0,
+  "orderby": "string",
+  "search": "string",
+  "searchFields": "string",
+  "select": "string",
+  "suggesterName": "string",
+  "top": 0
+}
+
+### Documents_Index [Documents]
+POST {{baseUrl}}/indexes('{index-name}')/docs/search.index
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "value": [
+    {
+      "@search.action": "upload"
+    }
+  ]
+}
+
+### Documents_AutocompleteGet [Documents]
+GET {{baseUrl}}/indexes('{index-name}')/docs/search.autocomplete
+Content-Type: application/json
+api-key: {{apiKey}}
+
+### Documents_AutocompletePost [Documents]
+POST {{baseUrl}}/indexes('{index-name}')/docs/search.post.autocomplete
+Content-Type: application/json
+api-key: {{apiKey}}
+
+{
+  "search": "string",
+  "autocompleteMode": "oneTerm",
+  "filter": "string",
+  "fuzzy": true,
+  "highlightPostTag": "string",
+  "highlightPreTag": "string",
+  "minimumCoverage": 0,
+  "searchFields": "string",
+  "suggesterName": "string",
+  "top": 0
+}

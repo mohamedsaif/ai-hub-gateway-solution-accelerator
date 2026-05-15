@@ -1,0 +1,95 @@
+# Spec-Driven Development — API Spec Validation
+# Runs on PRs that modify API specs or linting config.
+# Lints OpenAPI specs with Spectral and reports violations.
+
+name: API Spec Validation
+
+on:
+  pull_request:
+    branches: [main, citadel-v1]
+    paths:
+      - 'bicep/infra/modules/apim/**/*.yaml'
+      - '.spectral.yaml'
+      - 'package.json'
+  push:
+    branches: [main, citadel-v1]
+    paths:
+      - 'bicep/infra/modules/apim/**/*.yaml'
+      - '.spectral.yaml'
+      - 'package.json'
+
+jobs:
+  lint-specs:
+    name: Lint OpenAPI Specs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Run Spectral linting
+        run: npm run lint:specs
+
+  breaking-change-detection:
+    name: Detect Breaking Changes
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          path: pr
+
+      - name: Checkout base branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.base_ref }}
+          path: base
+
+      - name: Install oasdiff
+        run: |
+          curl -sSL https://raw.githubusercontent.com/Tufin/oasdiff/main/install.sh | sh
+
+      - name: Check for breaking changes
+        run: |
+          EXIT_CODE=0
+          SPEC_DIR="bicep/infra/modules/apim"
+
+          echo "## Breaking Change Report" > $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Compare each spec file that exists in both branches
+          for spec in $(find pr/$SPEC_DIR -name "*.yaml" -o -name "*.openapi.yaml" | sort); do
+            relative="${spec#pr/}"
+            base_spec="base/$relative"
+
+            if [ -f "$base_spec" ]; then
+              echo "Checking: $relative"
+              if ! oasdiff breaking "$base_spec" "$spec" 2>/dev/null; then
+                echo "⚠️ Breaking changes detected in: $relative"
+                echo "- ⚠️ \`$relative\` — breaking changes detected" >> $GITHUB_STEP_SUMMARY
+                EXIT_CODE=1
+              else
+                echo "- ✅ \`$relative\` — no breaking changes" >> $GITHUB_STEP_SUMMARY
+              fi
+            else
+              echo "- 🆕 \`$relative\` — new spec (no base to compare)" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ No breaking changes detected." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "❌ Breaking changes found. Review the changes above." >> $GITHUB_STEP_SUMMARY
+          fi
+
+          exit $EXIT_CODE
