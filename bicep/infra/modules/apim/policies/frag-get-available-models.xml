@@ -4,7 +4,7 @@
         Purpose: Returns a JSON response listing all available model deployments with their capabilities
         
         Expected Input Variables: 
-        - allowedModels (optional): Comma-separated string of model names to filter (e.g., "gpt-4o,deepseek-r1")
+        - allowedModels (optional): Comma-separated string of model names to filter (e.g., "gpt-4o,deepseek-v3.2")
                                     If empty or not set, returns all available models
         
         Output: HTTP 200 response with JSON body containing unique model deployment information

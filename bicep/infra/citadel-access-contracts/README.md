@@ -606,7 +606,7 @@ param services = [
 ```
 
 **Default policy includes**:
-- Model restrictions (GPT-4o, deepseek-r1)
+- Model restrictions (GPT-4o, deepseek-v3.2)
 - Token limits (300 tokens/min + 10,000 tokens/month)
 - Content safety checks
 

@@ -77,7 +77,7 @@ param llmBackendConfig = [
       { "name": "gpt-4o-mini", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "2024-07-18", "retirementDate": "2026-09-30" },
       { "name": "gpt-4o", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "2024-11-20", "retirementDate": "2026-09-30" },
       { "name": "gpt-4.1", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "2025-04-14", "retirementDate": "2026-10-14", "apiVersion": "2025-04-01-preview", "timeout": 180 },
-      { "name": "DeepSeek-R1", "sku": "GlobalStandard", "capacity": 1, "modelFormat": "DeepSeek", "modelVersion": "1", "retirementDate": "2099-12-30", "inferenceApiVersion": "2024-05-01-preview" },
+      { "name": "DeepSeek-V3.2", "sku": "GlobalStandard", "capacity": 1, "modelFormat": "DeepSeek", "modelVersion": "1", "retirementDate": "2099-12-30", "inferenceApiVersion": "2024-05-01-preview" },
       { "name": "Phi-4", "sku": "GlobalStandard", "capacity": 1, "modelFormat": "Microsoft", "modelVersion": "3", "retirementDate": "2099-12-30", "inferenceApiVersion": "2024-05-01-preview" },
       { "name": "text-embedding-3-large", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "1", "retirementDate": "2027-04-14" }
     ]
@@ -113,7 +113,7 @@ Each model in the `supportedModels` array has these properties:
 
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
-| `name` | string | Yes | Model name (e.g., `gpt-4o`, `DeepSeek-R1`, `Phi-4`) |
+| `name` | string | Yes | Model name (e.g., `gpt-4o`, `DeepSeek-V3.2`, `Phi-4`) |
 | `sku` | string | No | SKU name for the deployment (default: `Standard`). Used in `get-available-models` response |
 | `capacity` | number | No | Capacity/TPM quota (default: 100). Used in `get-available-models` response |
 | `modelFormat` | string | No | Model format identifier, e.g., `OpenAI`, `DeepSeek`, `Microsoft` (default: `OpenAI`). Used in `get-available-models` response |
@@ -165,7 +165,7 @@ param llmBackendConfig = [
       { "name": "gpt-4o-mini", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "2024-07-18", "retirementDate": "2026-09-30" },
       { "name": "gpt-4o", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "2024-11-20", "retirementDate": "2026-09-30" },
       { "name": "gpt-4.1", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "2025-04-14", "retirementDate": "2026-10-14", "apiVersion": "2025-04-01-preview", "timeout": 180 },
-      { "name": "DeepSeek-R1", "sku": "GlobalStandard", "capacity": 1, "modelFormat": "DeepSeek", "modelVersion": "1", "retirementDate": "2099-12-30", "inferenceApiVersion": "2024-05-01-preview" },
+      { "name": "DeepSeek-V3.2", "sku": "GlobalStandard", "capacity": 1, "modelFormat": "DeepSeek", "modelVersion": "1", "retirementDate": "2099-12-30", "inferenceApiVersion": "2024-05-01-preview" },
       { "name": "Phi-4", "sku": "GlobalStandard", "capacity": 1, "modelFormat": "Microsoft", "modelVersion": "3", "retirementDate": "2099-12-30", "inferenceApiVersion": "2024-05-01-preview" },
       { "name": "text-embedding-3-large", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "1", "retirementDate": "2027-04-14" }
     ]
@@ -177,7 +177,7 @@ param llmBackendConfig = [
 
 ### Load Balancing Across Regions
 
-As `DeepSeek-R1` is available in 2 different backends, the onboarding script will automatically create a backend pool for `DeepSeek-R1` and distribute traffic based on the specified priority/weights.
+As `DeepSeek-V3.2` is available in 2 different backends, the onboarding script will automatically create a backend pool for `DeepSeek-V3.2` and distribute traffic based on the specified priority/weights.
 
 ```bicep
 param llmBackendConfig = [
@@ -190,7 +190,7 @@ param llmBackendConfig = [
       { "name": "gpt-4o-mini", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "2024-07-18", "retirementDate": "2026-09-30" },
       { "name": "gpt-4o", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "2024-11-20", "retirementDate": "2026-09-30" },
       { "name": "gpt-4.1", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "2025-04-14", "retirementDate": "2026-10-14", "apiVersion": "2025-04-01-preview", "timeout": 180 },
-      { "name": "DeepSeek-R1", "sku": "GlobalStandard", "capacity": 1, "modelFormat": "DeepSeek", "modelVersion": "1", "retirementDate": "2099-12-30", "inferenceApiVersion": "2024-05-01-preview" },
+      { "name": "DeepSeek-V3.2", "sku": "GlobalStandard", "capacity": 1, "modelFormat": "DeepSeek", "modelVersion": "1", "retirementDate": "2099-12-30", "inferenceApiVersion": "2024-05-01-preview" },
       { "name": "Phi-4", "sku": "GlobalStandard", "capacity": 1, "modelFormat": "Microsoft", "modelVersion": "3", "retirementDate": "2099-12-30", "inferenceApiVersion": "2024-05-01-preview" },
       { "name": "text-embedding-3-large", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "1", "retirementDate": "2027-04-14" }
     ]
@@ -204,7 +204,7 @@ param llmBackendConfig = [
     authScheme: 'managedIdentity'
     supportedModels: [
       { "name": "gpt-5", "sku": "GlobalStandard", "capacity": 50, "modelFormat": "OpenAI", "modelVersion": "1", "retirementDate": "2027-02-05" },
-      { "name": "DeepSeek-R1", "sku": "GlobalStandard", "capacity": 1, "modelFormat": "DeepSeek", "modelVersion": "1", "retirementDate": "2099-12-30", "inferenceApiVersion": "2024-05-01-preview" }
+      { "name": "DeepSeek-V3.2", "sku": "GlobalStandard", "capacity": 1, "modelFormat": "DeepSeek", "modelVersion": "1", "retirementDate": "2099-12-30", "inferenceApiVersion": "2024-05-01-preview" }
     ]
     priority: 2
     weight: 50
@@ -214,7 +214,7 @@ param llmBackendConfig = [
 
 ### Mixed Providers
 
-This is mixing Azure OpenAI and Microsoft Foundry backends. Common models across providers will be automatically load balanced (like `DeepSeek-R1` and `text-embedding-3-large` in the below example), while unique models will be routed to their specific backend.
+This is mixing Azure OpenAI and Microsoft Foundry backends. Common models across providers will be automatically load balanced (like `DeepSeek-V3.2` and `text-embedding-3-large` in the below example), while unique models will be routed to their specific backend.
 
 ```bicep
 param llmBackendConfig = [
@@ -227,7 +227,7 @@ param llmBackendConfig = [
       { "name": "gpt-4o-mini", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "2024-07-18", "retirementDate": "2026-09-30" },
       { "name": "gpt-4o", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "2024-11-20", "retirementDate": "2026-09-30" },
       { "name": "gpt-4.1", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "2025-04-14", "retirementDate": "2026-10-14", "apiVersion": "2025-04-01-preview", "timeout": 180 },
-      { "name": "DeepSeek-R1", "sku": "GlobalStandard", "capacity": 1, "modelFormat": "DeepSeek", "modelVersion": "1", "retirementDate": "2099-12-30", "inferenceApiVersion": "2024-05-01-preview" },
+      { "name": "DeepSeek-V3.2", "sku": "GlobalStandard", "capacity": 1, "modelFormat": "DeepSeek", "modelVersion": "1", "retirementDate": "2099-12-30", "inferenceApiVersion": "2024-05-01-preview" },
       { "name": "Phi-4", "sku": "GlobalStandard", "capacity": 1, "modelFormat": "Microsoft", "modelVersion": "3", "retirementDate": "2099-12-30", "inferenceApiVersion": "2024-05-01-preview" },
       { "name": "text-embedding-3-large", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "1", "retirementDate": "2027-04-14" }
     ]
@@ -241,7 +241,7 @@ param llmBackendConfig = [
     authScheme: 'managedIdentity'
     supportedModels: [
       { "name": "gpt-5", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "2025-08-07", "retirementDate": "2027-02-05" },
-      { "name": "DeepSeek-R1", "sku": "GlobalStandard", "capacity": 1, "modelFormat": "DeepSeek", "modelVersion": "1", "retirementDate": "2099-12-30", "inferenceApiVersion": "2024-05-01-preview" },
+      { "name": "DeepSeek-V3.2", "sku": "GlobalStandard", "capacity": 1, "modelFormat": "DeepSeek", "modelVersion": "1", "retirementDate": "2099-12-30", "inferenceApiVersion": "2024-05-01-preview" },
       { "name": "text-embedding-3-large", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "1", "retirementDate": "2027-04-14" }
     ]
     priority: 1

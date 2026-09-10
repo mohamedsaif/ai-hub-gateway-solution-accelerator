@@ -67,7 +67,7 @@ Complete these steps **before** the workshop day to ensure a smooth experience.
 |-------------|---------|
 | **Azure Subscription** | You need an Azure subscription where you can deploy resources at subscription scope |
 | **Deployment Permissions** | Use **Owner** permissions, or **Contributor** plus **User Access Administrator**, because `azd up` creates managed identities and assigns RBAC roles |
-| **Sufficient Quota** | Quota for Azure OpenAI / AI Foundry model deployments (GPT-4.1, DeepSeek-R1, etc.) in the target region |
+| **Sufficient Quota** | Quota for Azure OpenAI / AI Foundry model deployments (GPT-4.1, DeepSeek-V3.2, etc.) in the target region |
 | **Resource Providers** | Several resource providers must be registered (see [Section 2.4](#24-register-azure-resource-providers)) |
 
 <details>
@@ -377,7 +377,7 @@ Navigate to your resource group in the Azure Portal. You should see resources in
 | Resource Type | Name Pattern | Purpose |
 |---------------|-------------|---------|
 | API Management | `apim-*` | Unified AI gateway — the heart of Citadel Hub |
-| AI Foundry | `aif-*` | Hosts AI model deployments (GPT-4.1, DeepSeek-R1, etc.) |
+| AI Foundry | `aif-*` | Hosts AI model deployments (GPT-4.1, DeepSeek-V3.2, etc.) |
 | Application Insights | `appi-apim-*` | APIM performance monitoring and telemetry |
 | Cosmos DB | `cosmos-*` | Usage record storage for analytics |
 | Event Hub | `evhns-*` | Real-time usage data streaming |

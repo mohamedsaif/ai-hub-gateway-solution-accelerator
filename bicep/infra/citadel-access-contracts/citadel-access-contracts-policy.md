@@ -18,7 +18,7 @@ The model access control policy restricts which LLM models a product can access.
     <include-fragment fragment-id="set-llm-requested-model" />
 
     <!-- Setting allowed models variable (comma-separated list) -->
-    <set-variable name="allowedModels" value="gpt-4o,deepseek-r1" />
+    <set-variable name="allowedModels" value="gpt-4o,deepseek-v3.2" />
     
     <!-- Validate model access based on allowedModels -->
     <include-fragment fragment-id="validate-model-access" />
@@ -47,7 +47,7 @@ When access is denied, the policy returns a structured JSON error:
         "message": "Access to model 'gpt-4' is not allowed for this product.",
         "type": "access_error",
         "code": "unauthorized_model_access",
-        "allowed_models": "gpt-4o,deepseek-r1"
+        "allowed_models": "gpt-4o,deepseek-v3.2"
     }
 }
 ```
@@ -56,7 +56,7 @@ When access is denied, the policy returns a structured JSON error:
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `allowedModels` | Comma-separated list of allowed model names (no white-space) | `"gpt-4o,deepseek-r1,Phi-4"` |
+| `allowedModels` | Comma-separated list of allowed model names (no white-space) | `"gpt-4o,deepseek-v3.2,Phi-4"` |
 
 >**NOTE:** Non-LLM requests (such as GET operations for listing available models) are automatically allowed and do not require model validation. This ensures auxiliary endpoints function without needing a model parameter.
 
@@ -98,7 +98,7 @@ To further control capacity management per model per subscription, you can exten
             token-quota-period="Monthly"
             retry-after-header-name="retry-after" />
     </when>
-    <when condition="@((string)context.Variables["requestedModel"] == "DeepSeek-R1")">
+    <when condition="@((string)context.Variables["requestedModel"] == "DeepSeek-V3.2")">
         <llm-token-limit 
             counter-key="@(context.Subscription.Id + "-" + context.Variables["requestedModel"])" 
             tokens-per-minute="2000" 

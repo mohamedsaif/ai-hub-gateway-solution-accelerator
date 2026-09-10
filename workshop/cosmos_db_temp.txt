@@ -1,0 +1,21 @@
+# Get the Cosmos DB account name from your deployment
+COSMOS_ACCOUNT=$(az cosmosdb list --resource-group $(azd env get-value AZURE_RESOURCE_GROUP) --query "[0].name" -o tsv)
+COSMOS_RESOURCE_GROUP=$(azd env get-value AZURE_RESOURCE_GROUP)
+CURRENT_USER_ID=$(az ad signed-in-user show --query id -o tsv)
+
+# Assign "Cosmos DB Built-in Data Contributor" role (role definition id: 00000000-0000-0000-0000-000000000002)
+az cosmosdb sql role assignment create --account-name $COSMOS_ACCOUNT --resource-group $COSMOS_RESOURCE_GROUP --role-definition-id 00000000-0000-0000-0000-000000000002 --principal-id $CURRENT_USER_ID --scope
+
+
+
+# Get the Cosmos DB endpoint
+COSMOS_ENDPOINT=$(az cosmosdb show --name $COSMOS_ACCOUNT --resource-group $COSMOS_RESOURCE_GROUP --query "documentEndpoint" -o tsv)
+
+# Import model pricing data
+uv run python scripts/import-model-pricing.py --endpoint $COSMOS_ENDPOINT
+
+
+
+SELECT * FROM c 
+WHERE c._ts > (GetCurrentTimestamp()/1000 - 7200) 
+ORDER BY c._ts DESC

@@ -438,7 +438,7 @@ param aiFoundryInstances array = [
 @metadata({
   example: '''
   Each model object should have:
-  - name: Model name (required) - e.g., 'gpt-4o', 'DeepSeek-R1'
+  - name: Model name (required) - e.g., 'gpt-4o', 'DeepSeek-V3.2'
   - publisher: Publisher/format identifier, e.g., 'OpenAI', 'DeepSeek', 'Microsoft' (used as modelFormat in backend config)
   - version: Version of the model
   - sku: SKU name for the deployment, e.g., 'GlobalStandard', 'Standard'
@@ -473,7 +473,7 @@ param aiFoundryModelsConfig array = [
     aiserviceIndex: 0
   }
   {
-    name: 'DeepSeek-R1'
+    name: 'DeepSeek-V3.2'
     publisher: 'DeepSeek'
     version: '1'
     sku: 'GlobalStandard'
@@ -509,7 +509,7 @@ param aiFoundryModelsConfig array = [
     aiserviceIndex: 1
   }
   {
-    name: 'DeepSeek-R1'
+    name: 'DeepSeek-V3.2'
     publisher: 'DeepSeek'
     version: '1'
     sku: 'GlobalStandard'
@@ -609,7 +609,7 @@ var modelsGroupedByInstance = [for (instance, i) in aiFoundryInstances: {
 
  var llmBackendConfig array = [
   // AI Foundry Instance 0 - Location: location (parameter)
-  // Models: gpt-4o-mini, gpt-4o, gpt-4.1, DeepSeek-R1, Phi-4
+  // Models: gpt-4o-mini, gpt-4o, gpt-4.1, DeepSeek-V3.2, Phi-4
   {
     backendId: 'aif-REPLACE-0'
     backendType: 'ai-foundry'
@@ -619,14 +619,14 @@ var modelsGroupedByInstance = [for (instance, i) in aiFoundryInstances: {
       { name: 'gpt-4o-mini', sku: 'GlobalStandard', capacity: 100, modelFormat: 'OpenAI', modelVersion: '2024-07-18', retirementDate: '2026-09-30' }
       { name: 'gpt-4o', sku: 'GlobalStandard', capacity: 100, modelFormat: 'OpenAI', modelVersion: '2024-11-20', retirementDate: '2026-09-30' }
       { name: 'gpt-4.1', sku: 'GlobalStandard', capacity: 100, modelFormat: 'OpenAI', modelVersion: '2025-04-14', retirementDate: '2026-10-14', apiVersion: '2025-04-01-preview', timeout: 180 }
-      { name: 'DeepSeek-R1', sku: 'GlobalStandard', capacity: 1, modelFormat: 'DeepSeek', modelVersion: '1', retirementDate: '2099-12-30', inferenceApiVersion: '2024-05-01-preview' }
+      { name: 'DeepSeek-V3.2', sku: 'GlobalStandard', capacity: 50, modelFormat: 'DeepSeek', modelVersion: '1', retirementDate: '2099-12-30', inferenceApiVersion: '2024-05-01-preview' }
       { name: 'Phi-4', sku: 'GlobalStandard', capacity: 1, modelFormat: 'Microsoft', modelVersion: '3', retirementDate: '2099-12-30', inferenceApiVersion: '2024-05-01-preview' }
     ]
     priority: 1
     weight: 100
   }
   // AI Foundry Instance 1 - Location: eastus2
-  // Models: gpt-5, DeepSeek-R1
+  // Models: gpt-5, DeepSeek-V3.2
   {
     backendId: 'aif-REPLACE-1'
     backendType: 'ai-foundry'
@@ -634,7 +634,7 @@ var modelsGroupedByInstance = [for (instance, i) in aiFoundryInstances: {
     authScheme: 'managedIdentity'
     supportedModels: [
       { name: 'gpt-5', sku: 'GlobalStandard', capacity: 100, modelFormat: 'OpenAI', modelVersion: '2025-08-07', retirementDate: '2027-02-05' }
-      { name: 'DeepSeek-R1', sku: 'GlobalStandard', capacity: 1, modelFormat: 'DeepSeek', modelVersion: '1', retirementDate: '2099-12-30', inferenceApiVersion: '2024-05-01-preview' }
+      { name: 'DeepSeek-V3.2', sku: 'GlobalStandard', capacity: 50, modelFormat: 'DeepSeek', modelVersion: '1', retirementDate: '2099-12-30', inferenceApiVersion: '2024-05-01-preview' }
     ]
     priority: 1
     weight: 100

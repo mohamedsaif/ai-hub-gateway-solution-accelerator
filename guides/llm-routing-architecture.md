@@ -71,7 +71,7 @@ Using policy fragments allows to keep the routing logic modular and reusable acr
 │                         Backend Pool Selection                             │
 │                                                                            │
 │   ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐        │
-│   │  gpt-4o-pool    │    │ deepseek-r1-pool│    │ Direct Backend  │        │
+│   │  gpt-4o-pool    │    │ deepseek-v3.2-pool│    │ Direct Backend  │        │
 │   │  ┌───────────┐  │    │  ┌───────────┐  │    │                 │        │
 │   │  │ Backend 1 │  │    │  │ Backend 1 │  │    │  Single backend │        │
 │   │  │(P:1,W:100)│  │    │  │(P:1,W:100)│  │    │  for unique     │        │
@@ -232,9 +232,9 @@ The `set-backend-pools` fragment loads all available backend pools:
 // Example pool configuration (auto-generated from Bicep)
 var pool_0 = new JObject()
 {
-    { "poolName", "DeepSeek-R1-backend-pool" },
+    { "poolName", "DeepSeek-V3.2-backend-pool" },
     { "poolType", "ai-foundry" },
-    { "supportedModels", new JArray("DeepSeek-R1") }
+    { "supportedModels", new JArray("DeepSeek-V3.2") }
 };
 backendPools.Add(pool_0);
 // Pool: aif-citadel-primary (Type: ai-foundry)
@@ -256,7 +256,7 @@ var pool_2 = new JObject()
 
 It is worth noting that:
 - Each backend supporting multiple models will have multiple pool entries (one per model)
-- Backends supporting the same model are grouped into a single load-balanced pool (like in `DeepSeek-R1-backend-pool` in the above example)
+- Backends supporting the same model are grouped into a single load-balanced pool (like in `DeepSeek-V3.2-backend-pool` in the above example)
 - This policy fragment can be gateway-region aware to support different routing pools for different regions if needed (like have a self-hosted gateway that will only route to on-premises LLMs while cloud gateway will route to cloud LLMs).
 - Policy can be set to allow a default backend pool to be returned if no matching model is found.
 
@@ -653,7 +653,7 @@ Content-Type: application/json
 api-key: <subscription-key>
 
 {
-  "model": "DeepSeek-R1",
+  "model": "DeepSeek-V3.2",
   "messages": [{"role": "user", "content": "Hello"}]
 }
 ```
@@ -661,9 +661,9 @@ api-key: <subscription-key>
 **Flow:**
 1. Load & cache metadata config
 2. Request processor detects api-type: `"inference"` (path contains `/models`)
-3. Extract model: `"DeepSeek-R1"` from request body
+3. Extract model: `"DeepSeek-V3.2"` from request body
 4. Security handler validates API key
-5. Find pool: `"DeepSeek-R1-backend-pool"` (shared fragment)
+5. Find pool: `"DeepSeek-V3.2-backend-pool"` (shared fragment)
 6. Authenticate: Managed Identity token
 7. Path builder constructs: `/models/chat/completions`
 8. Forward with `api-version=2024-05-01-preview`

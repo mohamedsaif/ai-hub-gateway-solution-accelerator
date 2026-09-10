@@ -223,11 +223,11 @@ param aiFoundryModelsConfig = [
     aiserviceIndex: 0
   }
   {
-    name: 'DeepSeek-R1'
+    name: 'DeepSeek-V3.2'
     publisher: 'DeepSeek'
     version: '1'
     sku: 'GlobalStandard'
-    capacity: 1
+    capacity: 50
     retirementDate: '2099-12-30'
     inferenceApiVersion: '2024-05-01-preview'
     aiserviceIndex: 0
@@ -300,11 +300,11 @@ param aiFoundryModelsConfig = [
     aiserviceIndex: 1
   }
   {
-    name: 'DeepSeek-R1'
+    name: 'DeepSeek-V3.2'
     publisher: 'DeepSeek'
     version: '1'
     sku: 'GlobalStandard'
-    capacity: 1
+    capacity: 50
     retirementDate: '2099-12-30'
     inferenceApiVersion: '2024-05-01-preview'
     aiserviceIndex: 1

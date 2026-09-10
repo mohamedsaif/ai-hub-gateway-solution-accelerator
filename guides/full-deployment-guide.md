@@ -523,7 +523,7 @@ param aiFoundryModelsConfig = [
     aiserviceIndex: 0
   }
   {
-    name: 'DeepSeek-R1'
+    name: 'DeepSeek-V3.2'
     publisher: 'DeepSeek'
     version: '1'
     sku: 'GlobalStandard'
@@ -555,7 +555,7 @@ param aiFoundryModelsConfig = [
     aiserviceIndex: 1 // Second instance in aiFoundryInstances array
   }
   {
-    name: 'DeepSeek-R1'
+    name: 'DeepSeek-V3.2'
     publisher: 'DeepSeek'
     version: '1'
     sku: 'GlobalStandard'

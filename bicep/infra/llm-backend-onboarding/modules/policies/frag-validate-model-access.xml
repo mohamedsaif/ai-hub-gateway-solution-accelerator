@@ -5,7 +5,7 @@
         
         Expected Input Variables:
         - requestedModel: The model name extracted from the request (set by set-llm-requested-model fragment)
-        - allowedModels: Comma-separated list of allowed model names (e.g., "gpt-4o,deepseek-r1")
+        - allowedModels: Comma-separated list of allowed model names (e.g., "gpt-4o,deepseek-v3.2")
         
         Behavior:
         - Non-LLM requests (e.g., GET operations like listing models) are always allowed
@@ -17,7 +17,7 @@
         2. Include this fragment after set-llm-requested-model
         
         Example:
-        <set-variable name="allowedModels" value="gpt-4o,deepseek-r1" />
+        <set-variable name="allowedModels" value="gpt-4o,deepseek-v3.2" />
         <include-fragment fragment-id="validate-model-access" />
     -->
     

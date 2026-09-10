@@ -14,7 +14,7 @@
 //                      {"name": "foundry2", "location": "eastus2"}]
 
 // models_config = [{"name": "gpt-4o-mini", "publisher": "OpenAI", "version": "2024-07-18", "sku": "GlobalStandard", "capacity": 100},
-//                  {"name": "DeepSeek-R1", "publisher": "DeepSeek", "version": "1", "sku": "GlobalStandard", "capacity": 1},
+//                  {"name": "DeepSeek-V3.2", "publisher": "DeepSeek", "version": "1", "sku": "GlobalStandard", "capacity": 1},
 //                  {"name": "Phi-4", "publisher": "Microsoft", "version": "3", "sku": "GlobalStandard", "capacity": 1}]
 
 // aiservices_config = [{"name": "foundry1", "location": "eastus"},
@@ -26,7 +26,7 @@
 //                  {"name": "gpt-4.1-nano", "publisher": "OpenAI", "version": "2025-04-14", "sku": "GlobalStandard", "capacity": 20, "aiservice": "foundry2"},
 //                  {"name": "model-router", "publisher": "OpenAI", "version": "2025-05-19", "sku": "GlobalStandard", "capacity": 20, "aiservice": "foundry3"},
 //                  {"name": "gpt-5", "publisher": "OpenAI", "version": "2025-08-07", "sku": "GlobalStandard", "capacity": 20, "aiservice": "foundry3"},
-//                  {"name": "DeepSeek-R1", "publisher": "DeepSeek", "version": "1", "sku": "GlobalStandard", "capacity": 20, "aiservice": "foundry3"}]
+//                  {"name": "DeepSeek-V3.2", "publisher": "DeepSeek", "version": "1", "sku": "GlobalStandard", "capacity": 20, "aiservice": "foundry3"}]
 
 @description('Configuration array for AI Foundry resources')
 param aiServicesConfig array = []
