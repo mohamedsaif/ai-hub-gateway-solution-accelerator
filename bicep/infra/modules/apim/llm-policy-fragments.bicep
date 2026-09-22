@@ -23,6 +23,39 @@ param managedIdentityClientId string
 @description('LLM backend configuration with model metadata for available models response')
 param llmBackendConfig array = []
 
+// --- Backend contract reporting inputs (surfaced by the Release Version API GET /version/backend-contract) ---
+
+@description('APIM target coordinates reported in the backend contract (e.g. { subscriptionId, resourceGroupName, name }).')
+param apimTarget object = {}
+
+@description('Whether the backend circuit breaker is enabled (reported in the backend contract).')
+param configureCircuitBreaker bool = true
+
+@description('Default circuit breaker settings reported in the backend contract.')
+param circuitBreakerDefaults object = {
+  failureCount: 3
+  failureInterval: 'PT5M'
+  tripDuration: 'PT1M'
+  acceptRetryAfter: true
+  errorReasons: [ 'Server errors' ]
+  statusCodeRanges: [
+    { min: 429, max: 429 }
+    { min: 500, max: 503 }
+  ]
+}
+
+@description('Whether backend-pool session affinity is enabled (reported in the backend contract).')
+param configureSessionAffinity bool = false
+
+@description('Default session affinity settings reported in the backend contract.')
+param sessionAffinityDefaults object = {
+  cookieName: 'ai-gateway-affinity'
+  source: 'Cookie'
+}
+
+@description('Model alias definitions reported in the backend contract.')
+param modelAliases array = []
+
 // ------------------
 //    VARIABLES
 // ------------------
@@ -76,7 +109,7 @@ var updatedSetBackendPoolsFragmentXml = replace(setBackendPoolsFragmentXml, '//{
 var metadataModelsResult = reduce(llmBackendConfig, { code: '', seenModels: [] }, (acc, config) =>
   reduce(config.supportedModels, acc, (modelAcc, model) => {
     // Find the pool/backend name for this model from allPools
-    code: contains(modelAcc.seenModels, model.name) ? modelAcc.code : '${modelAcc.code}${length(modelAcc.seenModels) > 0 ? ',\n' : ''}\t\t\t\'${model.name}\': {\n\t\t\t\t\'backend\': \'${reduce(allPools, '', (poolAcc, pool) => contains(pool.supportedModels, model.name) ? pool.poolName : poolAcc)}\',\n\t\t\t\t\'apiVersion\': \'${model.?apiVersion ?? '2024-02-15-preview'}\',\n\t\t\t\t\'timeout\': ${model.?timeout ?? 120}${!empty(model.?inferenceApiVersion) ? ',\n\t\t\t\t\'inferenceApiVersion\': \'${model.inferenceApiVersion}\'' : ''}\n\t\t\t}'
+    code: contains(modelAcc.seenModels, model.name) ? modelAcc.code : '${modelAcc.code}${length(modelAcc.seenModels) > 0 ? ',\n' : ''}\t\t\t\'${model.name}\': {\n\t\t\t\t\'backend\': \'${reduce(allPools, '', (poolAcc, pool) => contains(pool.supportedModels, model.name) ? pool.poolName : poolAcc)}\',\n\t\t\t\t\'apiVersion\': \'${model.?apiVersion ?? '2024-02-15-preview'}\',\n\t\t\t\t\'timeout\': ${model.?timeout ?? 120}${!empty(model.?inferenceApiVersion) ? ',\n\t\t\t\t\'inferenceApiVersion\': \'${model.inferenceApiVersion}\'' : ''}${!empty(model.?modelPath) ? ',\n\t\t\t\t\'modelPath\': \'${model.modelPath}\'' : ''}\n\t\t\t}'
     seenModels: contains(modelAcc.seenModels, model.name) ? modelAcc.seenModels : union(modelAcc.seenModels, [model.name])
   })
 )
@@ -98,6 +131,56 @@ var getAvailableModelsFragmentTemplate = loadTextContent('./policies/frag-get-av
 
 // Inject generated model deployments code into available models template
 var updatedGetAvailableModelsFragmentXml = replace(getAvailableModelsFragmentTemplate, '//{modelDeploymentsCode}', modelDeploymentsCode)
+
+/**
+ * Backend Contract fragment
+ * Returns the active LLM backend routing contract as static JSON. The contract is a detailed
+ * projection of the effective onboarding configuration: APIM target, full llmBackendConfig
+ * (with per-model metadata), circuit breaker configuration, session affinity configuration,
+ * model aliases, and the derived backend pools. It is generated at deploy time and refreshed by
+ * either the primary deployment or the LLM onboarding submodule, so the Release Version API
+ * `GET /version/backend-contract` operation always reflects the live configuration.
+ *
+ * Any `authConfig.secretValue` is redacted; endpoints and Key Vault references are preserved.
+ */
+var releaseManifest = loadJsonContent('../../../../release.json')
+var backendContractVersion = releaseManifest['backend-contract-version']
+var masterVersion = releaseManifest['master-version']
+
+// Redact inline secret values from each backend's authConfig (Key Vault refs / named values are kept).
+var backendContractBackends = map(llmBackendConfig, backend => contains(backend, 'authConfig')
+  ? union(backend, {
+      authConfig: contains(backend.authConfig, 'secretValue')
+        ? union(backend.authConfig, { secretValue: '***redacted***' })
+        : backend.authConfig
+    })
+  : backend)
+
+// Full, detailed backend contract object. string() serializes it to compact valid JSON.
+var backendContractObject = {
+  masterVersion: masterVersion
+  backendContractVersion: backendContractVersion
+  apim: apimTarget
+  circuitBreaker: {
+    enabled: configureCircuitBreaker
+    defaults: circuitBreakerDefaults
+  }
+  sessionAffinity: {
+    enabled: configureSessionAffinity
+    defaults: sessionAffinityDefaults
+  }
+  modelAliases: modelAliases
+  backends: backendContractBackends
+  pools: allPools
+}
+
+var backendContractJson = string(backendContractObject)
+
+// XML-escape the JSON so it embeds safely as literal text inside the fragment's <set-body>.
+// (& must be escaped first.) APIM un-escapes the entities when returning the body.
+var backendContractJsonEscaped = replace(replace(replace(backendContractJson, '&', '&amp;'), '<', '&lt;'), '>', '&gt;')
+
+var backendContractFragmentXml = replace(loadTextContent('./policies/frag-backend-contract.xml'), '//{backendContractJson}', backendContractJsonEscaped)
 
 // ------------------
 //    RESOURCES
@@ -282,6 +365,21 @@ resource metadataConfigFragment 'Microsoft.ApiManagement/service/policyFragments
   }
 }
 
+/**
+ * Policy Fragment: Backend Contract
+ * Returns the active LLM backend routing contract (version + pools + backends) as JSON.
+ * Consumed by the Release Version API `GET /version/backend-contract` operation.
+ */
+resource backendContractFragment 'Microsoft.ApiManagement/service/policyFragments@2024-06-01-preview' = {
+  parent: apimService
+  name: 'backend-contract'
+  properties: {
+    description: 'Returns the active LLM backend routing contract (version, pools, backends) deployed on this gateway'
+    value: backendContractFragmentXml
+    format: 'rawxml'
+  }
+}
+
 // ------------------
 //    OUTPUTS
 // ------------------
@@ -303,6 +401,9 @@ output validateModelAccessFragmentName string = validateModelAccessFragment.name
 
 @description('Name of the metadata-config fragment')
 output metadataConfigFragmentName string = metadataConfigFragment.name
+
+@description('Name of the backend-contract fragment')
+output backendContractFragmentName string = backendContractFragment.name
 
 @description('Name of the responses-id-security fragment')
 output responsesIdSecurityFragmentName string = responsesIdSecurityFragment.name

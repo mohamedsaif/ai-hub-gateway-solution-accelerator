@@ -23,6 +23,8 @@ param apimServiceName string
 param backendDetails array
 
 @description('Tags to apply to resources')
+// Retained for interface compatibility with callers; APIM backend pools do not support tags.
+#disable-next-line no-unused-params
 param tags object = {}
 
 // ------------------

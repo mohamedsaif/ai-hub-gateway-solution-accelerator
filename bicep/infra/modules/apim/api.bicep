@@ -223,4 +223,5 @@ resource apiDiagnosticsAppInsights 'Microsoft.ApiManagement/service/apis/diagnos
 }
 
 output id string = (enableAPIDeployment) ? apiDefinition.id : ''
+#disable-next-line BCP318
 output path string = (enableAPIDeployment) ? apiDefinition.properties.path : ''

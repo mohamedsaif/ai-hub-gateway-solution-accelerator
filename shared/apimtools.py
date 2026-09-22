@@ -53,7 +53,7 @@ class APIMClientTool:
                 api_path = api.path
                 self.api_id = api.id
                 utils.print_info(f"Found API with id {self.api_id} and path {api_path}")
-                self.azure_endpoint = f"{self.apim_resource_gateway_url}/{api_path.replace(api_path_filter, "")}"
+                self.azure_endpoint = f"{self.apim_resource_gateway_url}/{api_path.replace(api_path_filter, '')}"
                 utils.print_info(f"Azure Endpoint with APIM {self.azure_endpoint}")
                 break
         if not api_path:

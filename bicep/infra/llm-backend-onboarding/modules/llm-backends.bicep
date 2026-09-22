@@ -30,8 +30,41 @@ param managedIdentityClientId string
 @description('Configuration array for LLM backends')
 param llmBackendConfig array
 
-@description('Whether to configure circuit breaker for backends')
+@description('Whether to configure circuit breaker for backends (master toggle). Individual backends can opt out via `circuitBreaker.enabled: false` in their config.')
 param configureCircuitBreaker bool = true
+
+@description('Default circuit breaker settings applied to every backend unless overridden per-backend via the backend config `circuitBreaker` object')
+@metadata({
+  description: '''
+  Shape:
+  - failureCount: Number of failures within the interval that trips the breaker (default 3)
+  - failureInterval: ISO 8601 duration window used to count failures (default 'PT5M')
+  - tripDuration: ISO 8601 duration the breaker stays open once tripped (default 'PT1M')
+  - acceptRetryAfter: Honor upstream Retry-After header when tripping (default true)
+  - errorReasons: Failure reasons that count toward the breaker (default ['Server errors'])
+  - statusCodeRanges: HTTP status ranges counted as failures (default 429 and 500-503)
+  Any subset supplied per-backend is shallow-merged over these defaults.
+  '''
+})
+param circuitBreakerDefaults object = {
+  failureCount: 3
+  failureInterval: 'PT5M'
+  tripDuration: 'PT1M'
+  acceptRetryAfter: true
+  errorReasons: [
+    'Server errors'
+  ]
+  statusCodeRanges: [
+    {
+      min: 429
+      max: 429
+    }
+    {
+      min: 500
+      max: 503
+    }
+  ]
+}
 
 @description('Anthropic API version sent in the anthropic-version header for Anthropic backends (Messages API). Stored as the `anthropic-version` named value referenced by the backend credentials.header.')
 param anthropicVersion string = '2023-06-01'
@@ -50,6 +83,11 @@ var enrichedBackendConfig = [for config in llmBackendConfig: {
   raw: config
   effectiveAuthType: config.?authType ?? (config.backendType == 'aws-bedrock' ? 'aws-sigv4' : config.backendType == 'external' ? 'none' : config.backendType == 'aws-bedrock-mantle' || config.backendType == 'gemini-openai' ? 'api-key-bearer' : config.backendType == 'gemini' ? 'api-key-gemini' : config.backendType == 'anthropic' ? 'api-key-anthropic' : 'managed-identity')
   authNamedValueKey: config.?authConfig.?namedValueKey ?? ''
+  // Effective circuit breaker settings for this backend: start from the global
+  // defaults and shallow-merge any per-backend `circuitBreaker` overrides on top.
+  // `enabled` (optional, default true) lets a single backend opt out even when
+  // the master `configureCircuitBreaker` toggle is on.
+  circuitBreaker: union(circuitBreakerDefaults, config.?circuitBreaker ?? {})
 }]
 
 // Deduplicate per-backend authConfigs by namedValueKey so we create exactly one
@@ -153,30 +191,22 @@ resource llmBackends 'Microsoft.ApiManagement/service/backends@2024-06-01-previe
     url: entry.raw.endpoint
     protocol: 'http'
 
-    // Circuit breaker configuration for resilience
-    circuitBreaker: configureCircuitBreaker ? {
+    // Circuit breaker configuration for resilience. Per-backend settings are the
+    // global `circuitBreakerDefaults` shallow-merged with any overrides supplied
+    // on this backend's `circuitBreaker` object. A backend can opt out entirely
+    // by setting `circuitBreaker.enabled: false` even while the master toggle is on.
+    circuitBreaker: (configureCircuitBreaker && (entry.circuitBreaker.?enabled ?? true)) ? {
       rules: [
         {
           failureCondition: {
-            count: 3
-            errorReasons: [
-              'Server errors'
-            ]
-            interval: 'PT5M'
-            statusCodeRanges: [
-              {
-                min: 429
-                max: 429
-              }
-              {
-                min: 500
-                max: 503
-              }
-            ]
+            count: entry.circuitBreaker.failureCount
+            errorReasons: entry.circuitBreaker.errorReasons
+            interval: entry.circuitBreaker.failureInterval
+            statusCodeRanges: entry.circuitBreaker.statusCodeRanges
           }
           name: '${entry.raw.backendId}-breaker-rule'
-          tripDuration: 'PT1M'
-          acceptRetryAfter: true
+          tripDuration: entry.circuitBreaker.tripDuration
+          acceptRetryAfter: entry.circuitBreaker.acceptRetryAfter
         }
       ]
     } : null
@@ -229,4 +259,5 @@ output backendDetails array = [for (config, i) in llmBackendConfig: {
   supportedModels: config.supportedModels
   priority: config.?priority ?? 1
   weight: config.?weight ?? 100
+  sessionAffinity: config.?sessionAffinity ?? {}
 }]

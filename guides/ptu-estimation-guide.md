@@ -4,6 +4,8 @@
 > **Scope**: Azure OpenAI / Foundry LLM deployments using **Provisioned Throughput Units (PTUs)** and **Pay‑As‑You‑Go (PAYG)**  
 > **Models**: GPT‑4o, GPT‑5 family (GPT‑5, GPT‑5.1, GPT‑5 mini)
 
+A tool that can be leveraged to do the sizing can be found here: [AzurePTU Sizing Calculator](https://modelavailability.com/tools/azure-ptu-calculator)
+
 ***
 
 ## 1. What a PTU Really Is (and What It Is Not)

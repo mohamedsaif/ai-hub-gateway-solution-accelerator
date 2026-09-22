@@ -127,6 +127,9 @@ module privateEndpointFile '../networking/private-endpoint.bicep' = {
     dnsSubId: dnsSubscriptionId
     dnsZoneResourceId: storageFileDnsZoneResourceId
   }
+  dependsOn: [
+    privateEndpointBlob
+  ]
 }
 
 module privateEndpointTable '../networking/private-endpoint.bicep' = {
@@ -144,6 +147,10 @@ module privateEndpointTable '../networking/private-endpoint.bicep' = {
     dnsSubId: dnsSubscriptionId
     dnsZoneResourceId: storageTableDnsZoneResourceId
   }
+  dependsOn: [
+    privateEndpointBlob
+    privateEndpointFile
+  ]
 }
 
 module privateEndpointQueue '../networking/private-endpoint.bicep' = {
@@ -161,6 +168,11 @@ module privateEndpointQueue '../networking/private-endpoint.bicep' = {
     dnsSubId: dnsSubscriptionId
     dnsZoneResourceId: storageQueueDnsZoneResourceId
   }
+  dependsOn: [
+    privateEndpointBlob
+    privateEndpointFile
+    privateEndpointTable
+  ]
 }
 
 

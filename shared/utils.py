@@ -241,7 +241,7 @@ def cleanup_resources(deployment_name, resource_group_name = None):
             if output.success and output.json_data:
                 for resource in output.json_data:
                     print_info(f"Deleting AI Foundry project '{resource['name']}' in resource group '{resource_group_name}'...")
-                    output = run(f'az resource delete --ids "{resource['id']}"', f"AI Foundry project '{resource['name']}' deleted", f"Failed to delete AI Foundry project '{resource['name']}'")
+                    output = run(f"az resource delete --ids \"{resource['id']}\"", f"AI Foundry project '{resource['name']}' deleted", f"Failed to delete AI Foundry project '{resource['name']}'")
 
             # Delete and purge CognitiveService accounts
             output = run(f"az cognitiveservices account list -g {resource_group_name}", f"Listed CognitiveService accounts", f"Failed to list CognitiveService accounts")

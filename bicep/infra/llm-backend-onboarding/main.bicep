@@ -48,15 +48,17 @@ param apimManagedIdentity object
     - apiVersion: (Optional) API version for OpenAI-type requests, default '2024-02-15-preview'
     - timeout: (Optional) Request timeout in seconds, default 120
     - inferenceApiVersion: (Optional) API version for inference-type requests (e.g., '2024-05-01-preview')
+    - sessionAwareModel: (Optional) true/false, default false. Marks a model as stateful (e.g., OpenAI Responses / Assistants). When such a model is served by a multi-backend pool, the pool gets session affinity so requests replaying the affinity cookie are routed back to the same backend.
   - priority: (Optional) 1-5, default 1 (lower = higher priority)
   - weight: (Optional) 1-1000, default 100 (higher = more traffic)
+  - sessionAffinity: (Optional) { cookieName?: 'ai-gateway-affinity', source?: 'Cookie' } per-backend override for the affinity cookie used by session-aware model pools this backend participates in. Shallow-merged over `sessionAffinityDefaults`; omit to use the defaults.
   '''
   example: [
     {
       backendId: 'ai-foundry-eastus-gpt4'
       backendType: 'ai-foundry'
       endpoint: 'https://my-foundry.services.ai.azure.com/'
-      authScheme: 'managedIdentity'
+      authType: 'managed-identity'
       supportedModels: [
         { name: 'gpt-4o', sku: 'GlobalStandard', capacity: 100, modelFormat: 'OpenAI', modelVersion: '2024-11-20', retirementDate: '2026-09-30' }
         { name: 'gpt-4o-mini', sku: 'GlobalStandard', capacity: 100, modelFormat: 'OpenAI', modelVersion: '2024-07-18', retirementDate: '2026-09-30' }
@@ -69,8 +71,61 @@ param apimManagedIdentity object
 })
 param llmBackendConfig array
 
-@description('Whether to configure circuit breaker for backends (recommended for production)')
+@description('Whether to configure circuit breaker for backends (master toggle; recommended for production). Individual backends can opt out via `circuitBreaker.enabled: false` in their config.')
 param configureCircuitBreaker bool = true
+
+@description('Default circuit breaker settings applied to every backend unless overridden per-backend via the backend config `circuitBreaker` object')
+@metadata({
+  description: '''
+  Shape (all optional — omitted keys fall back to the built-in defaults shown):
+  - failureCount: Number of failures within the interval that trips the breaker (default 3)
+  - failureInterval: ISO 8601 duration window used to count failures (default 'PT5M')
+  - tripDuration: ISO 8601 duration the breaker stays open once tripped (default 'PT1M')
+  - acceptRetryAfter: Honor upstream Retry-After header when tripping (default true)
+  - errorReasons: Failure reasons that count toward the breaker (default ['Server errors'])
+  - statusCodeRanges: HTTP status ranges counted as failures (default 429 and 500-503)
+  Per-backend, add a `circuitBreaker` object to any llmBackendConfig entry to override
+  a subset of these (shallow-merged) or set `enabled: false` to disable it for that backend.
+  '''
+})
+param circuitBreakerDefaults object = {
+  failureCount: 3
+  failureInterval: 'PT5M'
+  tripDuration: 'PT1M'
+  acceptRetryAfter: true
+  errorReasons: [
+    'Server errors'
+  ]
+  statusCodeRanges: [
+    {
+      min: 429
+      max: 429
+    }
+    {
+      min: 500
+      max: 503
+    }
+  ]
+}
+
+@description('Master toggle for backend-pool session affinity (sticky routing). Global kill-switch only; the real opt-in is per-model via the `sessionAwareModel` flag on a model object. Leaving this true is safe because no pool receives affinity unless a model is flagged session-aware.')
+param configureSessionAffinity bool = true
+
+@description('Default session affinity cookie settings applied to session-aware model pools unless overridden per-backend via the backend config `sessionAffinity` object')
+@metadata({
+  description: '''
+  Applied only to pools whose model is flagged `sessionAwareModel: true`. Shape (all optional):
+  - cookieName: Name of the affinity cookie APIM sets/reads (default 'ai-gateway-affinity',
+    chosen to avoid clashing with other client/server cookies)
+  - source: Where the session id is read from (only 'Cookie' is supported by APIM today)
+  Per-backend, add a `sessionAffinity` object to any llmBackendConfig entry to override a subset
+  of these (shallow-merged). The first pool member that supplies an override wins.
+  '''
+})
+param sessionAffinityDefaults object = {
+  cookieName: 'ai-gateway-affinity'
+  source: 'Cookie'
+}
 
 @description('AWS access key ID for Amazon Bedrock authentication (required when using aws-bedrock backends)')
 @secure()
@@ -147,6 +202,7 @@ module llmBackends 'modules/llm-backends.bicep' = {
     managedIdentityClientId: managedIdentity.properties.clientId
     llmBackendConfig: llmBackendConfig
     configureCircuitBreaker: configureCircuitBreaker
+    circuitBreakerDefaults: circuitBreakerDefaults
     anthropicVersion: anthropicVersion
   }
 }
@@ -161,6 +217,8 @@ module llmBackendPools 'modules/llm-backend-pools.bicep' = {
   params: {
     apimServiceName: apim.name
     backendDetails: llmBackends.outputs.backendDetails
+    configureSessionAffinity: configureSessionAffinity
+    sessionAffinityDefaults: sessionAffinityDefaults
   }
 }
 
@@ -181,6 +239,12 @@ module llmPolicyFragments 'modules/llm-policy-fragments.bicep' = {
     awsRegion: awsRegion
     modelAliases: modelAliases
     keyVaultName: keyVaultName
+    // Backend contract reporting (surfaced via GET /version/backend-contract)
+    apimTarget: apim
+    configureCircuitBreaker: configureCircuitBreaker
+    circuitBreakerDefaults: circuitBreakerDefaults
+    configureSessionAffinity: configureSessionAffinity
+    sessionAffinityDefaults: sessionAffinityDefaults
   }
 }
 
@@ -236,4 +300,5 @@ output policyFragments object = {
   resolveModelAlias: llmPolicyFragments.outputs.resolveModelAliasFragmentName
   responsesIdSecurity: llmPolicyFragments.outputs.responsesIdSecurityFragmentName
   responsesIdCacheStore: llmPolicyFragments.outputs.responsesIdCacheStoreFragmentName
+  backendContract: llmPolicyFragments.outputs.backendContractFragmentName
 }

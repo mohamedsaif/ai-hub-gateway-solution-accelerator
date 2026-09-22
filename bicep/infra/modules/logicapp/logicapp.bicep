@@ -13,13 +13,19 @@ param location string = resourceGroup().location
 param skuName string
 param skuFamily string
 param skuSize string
-param skuCapaicty int
+param skuCapacity int
 param skuTier string
 param isReserved bool
 
 param cosmosDbAccountName string
 
 param functionAppSubnetId string
+
+param logicAppUsePrivateEndpoint bool = false
+param logicAppPublicNetworkAccess bool = true
+param logicAppPrivateEndpointName string = ''
+param privateEndpointSubnetId string = ''
+param dnsZoneResourceId string = ''
 
 param dotnetFrameworkVersion string = 'v6.0'
 
@@ -36,6 +42,8 @@ param cosmosDBContainerConfigName string
 param cosmosDBContainerUsageName string
 param cosmosDBContainerPIIName string
 param cosmosDBContainerLLMUsageName string
+param cosmosDBContainerMCPUsageName string = 'mcp-usage-container'
+param cosmosDBContainerAgentUsageName string = 'agent-usage-container'
 
 param apimAppInsightsName string
 
@@ -62,7 +70,7 @@ resource hostingPlan 'Microsoft.Web/serverfarms@2024-04-01' = {
     tier: skuTier //'WorkflowStandard'
     family: skuFamily //'WS'
     size: skuSize //'WS1'
-    capacity: skuCapaicty //1
+    capacity: skuCapacity //1
   }
   kind: 'elastic'
   properties: {
@@ -82,8 +90,26 @@ resource logicApp 'Microsoft.Web/sites@2024-04-01' = {
   properties: {
     enabled: true
     serverFarmId: hostingPlan.id
+    publicNetworkAccess: logicAppPublicNetworkAccess ? 'Enabled' : 'Disabled'
     reserved: isReserved       
     virtualNetworkSubnetId: functionAppSubnetId
+  }
+}
+
+module privateEndpoint '../networking/private-endpoint.bicep' = if (logicAppUsePrivateEndpoint) {
+  name: '${logicAppName}-pe'
+  params: {
+    groupIds: [
+      'sites'
+    ]
+    dnsZoneName: 'privatelink.azurewebsites.net'
+    name: logicAppPrivateEndpointName
+    privateLinkServiceId: logicApp.id
+    location: location
+    privateEndpointSubnetId: privateEndpointSubnetId
+    dnsZoneResourceId: dnsZoneResourceId
+    enableDnsIntegration: true
+    tags: tags
   }
 }
 
@@ -106,7 +132,6 @@ resource functionAppSiteConfig 'Microsoft.Web/sites/config@2024-04-01' = {
     minTlsVersion: '1.2'
     scmMinTlsVersion: '1.2'
     minimumElasticInstanceCount: 1
-    publicNetworkAccess: 'Enabled'  
     functionsRuntimeScaleMonitoringEnabled: true
     netFrameworkVersion: dotnetFrameworkVersion
     preWarmedInstanceCount: 1
@@ -129,7 +154,7 @@ resource functionAppSettings 'Microsoft.Web/sites/config@2024-04-01' = {
       //AzureWebJobsStorage__accountname: storageAccountName      
       FUNCTIONS_EXTENSION_VERSION:  '~4'
       FUNCTIONS_WORKER_RUNTIME: 'node'
-      WEBSITE_NODE_DEFAULT_VERSION: '~20'
+      WEBSITE_NODE_DEFAULT_VERSION: '~24'
       WEBSITE_CONTENTAZUREFILECONNECTIONSTRING: storageAccountConnectionString
       WEBSITE_CONTENTSHARE: fileShareName
       WEBSITE_VNET_ROUTE_ALL: '0'
@@ -145,6 +170,8 @@ resource functionAppSettings 'Microsoft.Web/sites/config@2024-04-01' = {
       CosmosDBContainerUsage: cosmosDBContainerUsageName
       CosmosDBContainerPII: cosmosDBContainerPIIName
       CosmosDBContainerLLMUsage: cosmosDBContainerLLMUsageName
+      CosmosDBContainerMCPUsage: cosmosDBContainerMCPUsageName
+      CosmosDBContainerAgentUsage: cosmosDBContainerAgentUsageName
       AzureCosmosDB_connectionString: cosmosDbAccount.listConnectionStrings().connectionStrings[0].connectionString
       AppInsights_SubscriptionId: subscription().subscriptionId
       AppInsights_ResourceGroup: resourceGroup().name
@@ -209,4 +236,7 @@ module azureMonitorConnectionAccess 'api-connection-access.bicep' = {
     location: location
     tags: tags
   }
+  dependsOn: [
+    azureMonitorConnection
+  ]
 }

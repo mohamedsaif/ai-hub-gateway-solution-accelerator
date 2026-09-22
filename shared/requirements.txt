@@ -4,20 +4,25 @@
 # The Python Worker is managed by the Azure Functions platform
 # Manually managing azure-functions-worker may cause unexpected issues
 
+# Azure CLI is a system prerequisite, not a Python dependency. Install it using
+# https://learn.microsoft.com/cli/azure/install-azure-cli and verify with `az --version`.
+# The notebooks invoke the external `az` command and do not import `azure.cli`.
+
 requests
 jsonref
 python-dotenv
+numpy
 pandas
 matplotlib
 redis
 msal
 openai
 openai[realtime]
-azure-cli
 azure-identity
 opentelemetry-api
 opentelemetry-sdk
 opentelemetry-instrumentation-openai-v2
+opentelemetry-semantic-conventions-ai
 azure-monitor-opentelemetry
 azure-monitor-ingestion
 azure-ai-projects
@@ -36,3 +41,10 @@ semantic-kernel[mcp]
 
 # Agent Framework
 agent-framework
+agent-framework-core
+# A2A client for consuming published A2A agents through the gateway (Citadel Publish Contract validation notebook)
+agent-framework-a2a
+a2a-sdk
+nest-asyncio
+langchain
+langchain-openai

@@ -20,6 +20,8 @@ The PII handling framework has been enhanced with the following key features:
 
 5. **PII Blocking**: New capability to completely block requests containing PII data with a 400 Bad Request response, useful for strict compliance scenarios where no PII should reach backend services.
 
+6. **Large Document Chunking & Batching**: Requests larger than the Azure AI Language Service 5,120-character-per-document limit are automatically split into overlapping chunks, batched up to 5 chunks per Language Service request (the service maximum), and analyzed across multiple requests. Detection runs on the chunks only — the original request body is never reassembled from redacted pieces — so the structure of the request is fully preserved. See [Handling Large Documents (Chunking & Batching)](#handling-large-documents-chunking--batching).
+
 ## Process Flow
 
 ```mermaid
@@ -33,11 +35,13 @@ sequenceDiagram
     
     rect rgba(0, 255, 0, 0.1)
         Note over APIM: Inbound Processing
-        APIM->>PII Service: Send to Azure Language Service
-        PII Service-->>APIM: Return PII entities
+        Note over APIM: Chunk body (<=5,120 chars/chunk, with overlap)
+        APIM->>PII Service: Send batch(es) of up to 5 chunks
+        PII Service-->>APIM: Return PII entities per chunk
+        Note over APIM: Aggregate + de-duplicate entities
         Note over APIM: Apply regex patterns
         Note over APIM: Create PII mappings
-        Note over APIM: Replace PII with placeholders
+        Note over APIM: Replace PII with placeholders (global text replace)
     end
     
     APIM->>Backend API: Forward anonymized request
@@ -183,6 +187,52 @@ Sample output for the above request:
 
 > **NOTE:** It is worth noting that you can send to the anonymization API a full json in the request body (like sending the entire Azure OpenAI request with its context) and the API will return the anonymized json that preserves the structure of the original json. This is useful when you want to anonymize a full json object that contains PII data.
 
+## Handling Large Documents (Chunking & Batching)
+
+Azure AI Language Service enforces a hard limit of **5,120 characters per document** for PII detection. A single Azure OpenAI request that carries a long conversation history (system prompt + many turns) can easily exceed this limit, which would previously cause the analysis call to fail or truncate.
+
+The `pii-anonymization` fragment handles this transparently by **chunking** the input, **batching** chunks into Language Service requests, and **aggregating** the detected entities — without ever compromising the structure of the original request body.
+
+### How it works
+
+```mermaid
+flowchart TD
+    A[piiInputContent<br/>full request body] --> B{Length &le; piiMaxChunkSize?}
+    B -->|Yes| C[Single chunk]
+    B -->|No| D[Split into overlapping chunks<br/>break on whitespace near the limit]
+    C --> E[Batch chunks:<br/>up to 5 documents per request]
+    D --> E
+    E --> F[Request 1: chunks 0-4]
+    E --> G[Request 2: chunks 5-9]
+    E --> H[... up to 5 requests / 25 chunks]
+    F --> I[Aggregate entities from all documents/responses]
+    G --> I
+    H --> I
+    I --> J[Apply confidence threshold,<br/>category exclusions, de-dupe by text]
+    J --> K[Build piiMappings]
+    K --> L[Global text replace on the<br/>FULL original body -> piiAnonymizedContent]
+```
+
+1. **Chunking** — the (regex-preprocessed) `piiInputContent` is split into chunks no larger than `piiMaxChunkSize` (default `5000`, clamped to the `500`–`5120` service range). Splits are made on the nearest whitespace before the limit so PII tokens are not cut in half. Consecutive chunks share `piiChunkOverlap` characters (default `250`) so any entity that straddles a boundary still appears whole in at least one chunk.
+2. **Batching** — chunks are grouped into Language Service requests of up to **5 documents each** (the service maximum). To minimize the number of calls, the first request carries chunks 0–4, the second carries chunks 5–9, and so on, for up to **5 requests (25 chunks ≈ 125,000 characters)**.
+3. **Aggregation** — entities returned for every document across every response are collected into a single list, then the existing confidence-threshold, category-exclusion, and de-duplication logic is applied.
+4. **Masking** — the final anonymization is a **global text replacement of each detected value with its placeholder, applied to the full original body** (exactly as in the single-document path). The redacted chunks are used only for detection and are never reassembled, which is what guarantees the request structure — and therefore reconstruction during deanonymization — is preserved byte-for-byte apart from the substituted PII values.
+
+### Body preservation & reconstruction
+
+Because masking is a text substitution on the untouched original body (not a reassembly of chunk fragments), the JSON structure of the request is always intact. The resulting `piiMappings` are identical in shape to the single-document case, so the outbound `pii-deanonymization` fragment restores the original values without any change. Deanonymization runs entirely locally (no Language Service call) and is therefore not subject to the 5,120-character limit.
+
+### Configuration & limits
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `piiMaxChunkSize` | `5000` | Max characters per chunk/document. Clamped to `500`–`5120`. |
+| `piiChunkOverlap` | `250` | Overlap characters between chunks to catch boundary-straddling entities. Clamped to `≤ piiMaxChunkSize / 2`. |
+
+- **Backward compatible:** for any request smaller than `piiMaxChunkSize`, exactly one chunk and one request are produced — behavior is identical to the previous implementation.
+- **Maximum supported size:** approximately **125,000 characters** (5 requests × 5 chunks × 5,000). Content beyond this cap is not analyzed for PII; the fragment emits an APIM `trace` warning so the truncation is observable.
+- **Observability:** when chunking is active the fragment emits an informational `trace` recording the chunk count and input length.
+
 ## APIM implementation
 
 Handling PII anonymization and deanonymization in APIM are done using policy fragments. The following policies can be used to implement the above process:
@@ -205,6 +255,10 @@ This policy fragment is expecting the following variables to be set in the targe
 - `piiInputContent`: The input content to be anonymized (this should be set in the inbound policy of the target API).
 - `piiDetectionLanguage`: The language used for PII detection (default is "en"). Use "auto" for multilingual content.
 - `piiRegexPatterns`: Optional JSON array of custom regex patterns for PII detection.
+- `piiMaxChunkSize`: Optional maximum characters per chunk/document sent to the Language Service (default `5000`; automatically clamped to the `500`–`5120` service range).
+- `piiChunkOverlap`: Optional number of overlapping characters between consecutive chunks (default `250`), used to catch PII entities that straddle a chunk boundary.
+
+> **NOTE:** `piiMaxChunkSize` and `piiChunkOverlap` only take effect when the input exceeds a single chunk. For requests smaller than `piiMaxChunkSize` the behavior is identical to the previous single-request implementation (full backward compatibility). See [Handling Large Documents (Chunking & Batching)](#handling-large-documents-chunking--batching) for details.
 
 ```xml
 <fragment>

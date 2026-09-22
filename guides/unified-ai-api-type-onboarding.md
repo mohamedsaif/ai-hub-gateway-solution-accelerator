@@ -11,6 +11,8 @@ The Unified AI API uses a modular, fragment-based architecture that supports add
 
 This guide walks through every step required to add a new API type, using **Amazon Bedrock** as a concrete example.
 
+> **Another worked example: image models.** The `image` api-type (Azure OpenAI gpt-image, Black Forest Labs FLUX, Microsoft MAI) was added following exactly these steps — a new `image` api-type with `base-path: /v1/images`, new `azure-flux`/`azure-mai` backend types with their own `backend-path-templates`, a `{modelPath}` slug placeholder resolved in `path-builder`, and an `x-ai-model` header fallback for multipart edits in `request-processor`. See [LLM Access Guide — Image Models](./llm-access-guide.md#image-models) and [LLM Backend Onboarding — Image Models](../bicep/infra/llm-backend-onboarding/README.md#image-models).
+
 ## Architecture Context
 
 The Unified AI API handles all request patterns through a single wildcard endpoint (`/unified-ai/*`). The routing flow is:
@@ -173,7 +175,7 @@ Add a new `<when>` block inside the `<choose>` element, before the default `<oth
 | `/bedrock/model/{model}/converse` (prefix-strip) | Provider-specific native paths | Amazon Bedrock, Gemini native |
 | Fixed path with body-model rewrite | Provider-specific paths whose API has no model in URL | Anthropic Claude (`/claude/v1/messages`) |
 
-> **Stateful APIs (Responses API)** — When your new api-type exposes server-side stateful resources keyed by an id (similar to OpenAI's Responses API `response_id`), pair it with the cross-API `responses-id-security` / `responses-id-cache-store` fragments described in [llm-access-guide.md](llm-access-guide.md#step-15-responses-api-id-security-responses-id-security--responses-id-cache-store). Those fragments are wired in once per API policy and cover Universal LLM, Azure OpenAI, and Unified AI surfaces, returning **403** on cross-subscription access and **404** on unknown ids.
+> **Stateful APIs (Responses API)** — When your new api-type exposes server-side stateful resources keyed by an id (similar to OpenAI's Responses API `response_id`), pair it with the cross-API `responses-id-security` / `responses-id-cache-store` fragments described in [llm-access-guide.md](llm-access-guide.md#step-15-responses-api-id-security-responses-id-security--responses-id-cache-store). Those fragments are wired in once per API policy and cover Universal LLM, Azure OpenAI, and Unified AI surfaces, returning **403** on cross-subscription or cross-product access and **404** on unknown ids. Ownership mappings last 30 days, matching the default OpenAI Responses API retention period.
 
 #### Additional Behaviors
 
@@ -280,8 +282,10 @@ Add your backend to the `llmBackendConfig` array in your `.bicepparam` file with
 | `backendId` | Unique identifier (e.g., `bedrock-us-east-1`) |
 | `backendType` | Your new type identifier (e.g., `aws-bedrock`) — must match the `targetPoolType` in auth fragment |
 | `endpoint` | Base URL of the provider (e.g., `https://bedrock-runtime.us-east-1.amazonaws.com`) |
-| `authScheme` | Authentication scheme (e.g., `awsSigV4`, `managedIdentity`, `apiKey`) |
+| `authType` | Authentication type (e.g., `aws-sigv4`, `managed-identity`, `api-key-bearer`). The legacy `authScheme` is still tolerated but superseded by `authType`. |
 | `supportedModels` | Array of model definitions with metadata |
+
+> **Stateful models:** add `sessionAwareModel: true` to any model object that must keep a client pinned to one backend across a session (e.g., the OpenAI Responses / Assistants APIs). When that model is served by a multi-backend pool, the pool gets session affinity so requests replaying the affinity cookie stick to the same backend. A single backend can mix session-aware and stateless models. Tune the cookie with `configureSessionAffinity` / `sessionAffinityDefaults` (default cookie `ai-gateway-affinity`) or a per-backend `sessionAffinity` override. See [LLM Backend Onboarding — Session Affinity Configuration](../bicep/infra/llm-backend-onboarding/README.md#session-affinity-configuration).
 
 **Example — Amazon Bedrock backend:**
 
@@ -291,7 +295,7 @@ param llmBackendConfig = [
     backendId: 'bedrock-us-east-1'
     backendType: 'aws-bedrock'
     endpoint: 'https://bedrock-runtime.us-east-1.amazonaws.com'
-    authScheme: 'awsSigV4'
+    authType: 'aws-sigv4'
     supportedModels: [
       {
         "name": "us.anthropic.claude-3-5-haiku-20241022-v1:0"

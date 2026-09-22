@@ -1,0 +1,29 @@
+<policies>
+    <inbound>
+        <base />
+        <!-- COMMON POLICIES (asset-agnostic): add opt-in content safety / custom alerting here. -->
+        <set-variable name="contractToolApis" value="weather-tool,ms-learn-tool" />
+        <set-variable name="contractAgentApis" value="hr-chat-agent" />
+        <include-fragment fragment-id="set-asset-kind" />
+        <choose>
+            <when condition="@(context.Variables.GetValueOrDefault<string>(&quot;assetKind&quot;,&quot;llm&quot;) == &quot;llm&quot;)">
+                <include-fragment fragment-id="set-llm-requested-model" />
+                <set-variable name="allowedModels" value="gpt-4.1,gpt-5.4-mini" />
+                <include-fragment fragment-id="validate-model-access" />
+                <llm-token-limit counter-key="@(context.Subscription.Id)" tokens-per-minute="10000" estimate-prompt-tokens="false" token-quota="1000000" token-quota-period="Monthly" />
+                <set-variable name="enableResponseHeaders" value="@(true)" />
+            </when>
+            <when condition="@(context.Variables.GetValueOrDefault<string>(&quot;assetKind&quot;,&quot;&quot;) == &quot;tool&quot;)">
+                <rate-limit-by-key calls="20" renewal-period="60" counter-key="@(context.Subscription.Id + &quot;:tool&quot;)" />
+                <quota-by-key calls="100000" renewal-period="2592000" counter-key="@(context.Subscription.Id + &quot;:tool&quot;)" />
+            </when>
+            <when condition="@(context.Variables.GetValueOrDefault<string>(&quot;assetKind&quot;,&quot;&quot;) == &quot;agent&quot;)">
+                <rate-limit-by-key calls="10" renewal-period="60" counter-key="@(context.Subscription.Id + &quot;:agent&quot;)" />
+                <quota-by-key calls="50000" renewal-period="2592000" counter-key="@(context.Subscription.Id + &quot;:agent&quot;)" />
+            </when>
+        </choose>
+    </inbound>
+    <backend><base /></backend>
+    <outbound><base /></outbound>
+    <on-error><base /></on-error>
+</policies>

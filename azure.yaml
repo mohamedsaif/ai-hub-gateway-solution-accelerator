@@ -10,3 +10,19 @@ services:
     project: ./src/usage-ingestion-logicapp
     language: js
     host: function
+# hooks:
+#   # Azure Managed Redis (Microsoft.Cache/redisEnterprise) can hit a transient create failure that
+#   # leaves the cluster in a terminal "Failed" state. A rerun then fails with "A resource with this
+#   # name already exists or is in a conflicting state." This hook deletes only a failed Redis before
+#   # provisioning so `azd up` self-heals; it is a no-op when Redis is absent or healthy.
+#   preprovision:
+#     windows:
+#       shell: pwsh
+#       run: ./scripts/remove-failed-managed-redis.ps1
+#       continueOnError: false
+#       interactive: false
+#     posix:
+#       shell: sh
+#       run: ./scripts/remove-failed-managed-redis.sh
+#       continueOnError: false
+#       interactive: false

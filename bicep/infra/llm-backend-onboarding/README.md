@@ -22,6 +22,17 @@ This package enables dynamic LLM backend routing without modifying APIM policies
 | **Get Available Models Fragment** | Returns available model deployments with capabilities (similar to Azure Cognitive Services API) |
 | **Metadata Config Fragment** | Centralized model routing config for the Unified AI API — always deployed with backend onboarding to stay in sync |
 | **Resolve Model Alias Fragment** | Resolves client-facing alias names (e.g. `adv-gpt` as an alias for gpt-5.2 and gpt-4.1) to actual underlying models — shared across Azure OpenAI, Universal LLM, and Unified AI APIs |
+| **Backend Contract Fragment** | `backend-contract` fragment returning the active routing contract as JSON: APIM target, full `llmBackendConfig` (per-model metadata), circuit breaker + session affinity configuration, model aliases, and derived pools. Regenerated on every onboarding run so the Release Version API `GET /version/backend-contract` operation always reflects the live contract |
+
+> [!NOTE]
+> **Backend Contract endpoint.** The primary accelerator deployment creates a **Release Version API**
+> with a `GET /version/backend-contract` operation. That operation returns its response through the
+> dynamically generated `backend-contract` policy fragment. Running this onboarding submodule
+> **refreshes that fragment** from your full `llmBackendConfig` (plus circuit breaker, session
+> affinity, and model alias settings), so the endpoint immediately reflects newly onboarded
+> backends/models — no change to the API definition is required. Inline `authConfig.secretValue`
+> entries are redacted (Key Vault references and named-value keys are preserved). See the
+> [Release Version Management Guide](../../../guides/release-version-management.md#backend-contract-endpoint).
 
 ## Prerequisites
 
@@ -73,7 +84,7 @@ param llmBackendConfig = [
     backendId: 'aif-citadel-primary'
     backendType: 'ai-foundry'
     endpoint: 'https://aif-RESOURCE_TOKEN-0.cognitiveservices.azure.com/'
-    authScheme: 'managedIdentity'
+    authType: 'managed-identity'
     supportedModels: [
       { "name": "gpt-4o-mini", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "2024-07-18", "retirementDate": "2026-09-30" },
       { "name": "gpt-4o", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "2024-11-20", "retirementDate": "2026-09-30" },
@@ -101,12 +112,16 @@ az deployment sub create --name llm-backend-onboarding --location swedencentral 
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
 | `backendId` | string | Yes | Unique identifier for the backend (usually the name of the backend resource) |
-| `backendType` | string | Yes | `ai-foundry`, `azure-openai`, `aws-bedrock`, or `external` |
+| `backendType` | string | Yes | `ai-foundry`, `azure-openai`, `aws-bedrock`, `aws-bedrock-mantle`, `gemini`, `gemini-openai`, `anthropic`, `azure-flux`, `azure-mai`, or `external` |
 | `endpoint` | string | Yes | Base URL of the LLM service |
-| `authScheme` | string | Yes | `managedIdentity`, `apiKey`, or `token` |
+| `authType` | string | No | `managed-identity`, `aws-sigv4`, `api-key-bearer`, `api-key-header`, `api-key-gemini`, `api-key-anthropic`, or `none`. When omitted, derived from `backendType` (ai-foundry/azure-openai → `managed-identity`) |
+| `authConfig` | object | No | `{ namedValueKey, keyVaultSecretUri?, secretValue? }` — required for `api-key-*` auth types |
+| `authScheme` | string | No | **Legacy** — `managedIdentity`, `apiKey`, or `token`. Superseded by `authType`; still tolerated for backward compatibility |
 | `supportedModels` | array | Yes | Array of model objects (see Model Object Properties below) |
 | `priority` | number | No | 1-5, default 1 (lower = higher priority) |
 | `weight` | number | No | 1-1000, default 100 (load balancing weight) |
+| `circuitBreaker` | object | No | Per-backend circuit breaker override (shallow-merged over `circuitBreakerDefaults`). Supports `failureCount`, `failureInterval`, `tripDuration`, `acceptRetryAfter`, `errorReasons`, `statusCodeRanges`, and `enabled`. See [Circuit Breaker Configuration](#circuit-breaker-configuration) |
+| `sessionAffinity` | object | No | Per-backend session affinity override (shallow-merged over `sessionAffinityDefaults`). Supports `cookieName` and `source`. Applies to the session-aware model pools this backend joins. See [Session Affinity Configuration](#session-affinity-configuration) |
 
 ### Model Object Properties
 
@@ -123,6 +138,8 @@ Each model in the `supportedModels` array has these properties:
 | `apiVersion` | string | No | API version for OpenAI-type requests (default: `2024-02-15-preview`). Used by Unified AI API for backend routing |
 | `timeout` | number | No | Request timeout in seconds (default: `120`). Used by Unified AI API for per-model timeout configuration |
 | `inferenceApiVersion` | string | No | API version for inference-type requests (e.g., `2024-05-01-preview`). Used by Unified AI API for non-OpenAI models |
+| `sessionAwareModel` | bool | No | Default `false`. Marks a **stateful** model (e.g., OpenAI Responses / Assistants). When such a model is served by a multi-backend pool, the pool is given session affinity so follow-up requests replaying the affinity cookie stick to the same backend. See [Session Affinity Configuration](#session-affinity-configuration) |
+| `modelPath` | string | No | Provider-specific model slug used in the backend URL path. **Required for `azure-flux`** models, where the BFL slug differs from the model name (e.g. model `FLUX.2-pro` -> `modelPath` `flux-2-pro`, `FLUX.1-Kontext-pro` -> `flux-kontext-pro`). When omitted, the gateway falls back to the model name. Set once at onboarding; see [Image Models](#image-models). |
 
 ### Backend Types
 
@@ -151,6 +168,20 @@ Each model in the `supportedModels` array has these properties:
 - Requires additional parameters: `awsAccessKey`, `awsSecretKey`, `awsRegion`
 - See [Microsoft Learn: Import Amazon Bedrock API](https://learn.microsoft.com/en-us/azure/api-management/amazon-bedrock-passthrough-llm-api) for detailed APIM integration guidance
 
+#### Azure FLUX (`azure-flux`)
+- Black Forest Labs FLUX image models hosted on a Microsoft Foundry resource (native BFL surface)
+- Endpoint format: `https://<resource>.services.ai.azure.com/` (or `https://<resource>.api.cognitive.microsoft.com/`)
+- Authentication: Managed identity with Cognitive Services scope (same as `ai-foundry`)
+- Path construction: `/providers/blackforestlabs/v1/{modelPath}?api-version=preview` — **each model must set `modelPath`** (the BFL slug, e.g. `flux-2-pro`)
+- Image generation/edit only; reached via the unified `/v1/images/generations` and `/v1/images/edits` surfaces. See [Image Models](#image-models).
+
+#### Azure MAI (`azure-mai`)
+- Microsoft MAI image models hosted on a Microsoft Foundry resource (native MAI surface)
+- Endpoint format: `https://<resource>.services.ai.azure.com/`
+- Authentication: Managed identity with Cognitive Services scope (override to `api-key-header` if using a key)
+- Path construction: `/mai/v1/images/generations` and `/mai/v1/images/edits` (model travels in the request body)
+- Image generation/edit only; reached via the unified `/v1/images/generations` and `/v1/images/edits` surfaces. See [Image Models](#image-models).
+
 ## Example Configurations
 
 ### Single AI Foundry Backend
@@ -161,7 +192,7 @@ param llmBackendConfig = [
     backendId: 'aif-citadel-primary'
     backendType: 'ai-foundry'
     endpoint: 'https://aif-RESOURCE_TOKEN-0.cognitiveservices.azure.com/'
-    authScheme: 'managedIdentity'
+    authType: 'managed-identity'
     supportedModels: [
       { "name": "gpt-4o-mini", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "2024-07-18", "retirementDate": "2026-09-30" },
       { "name": "gpt-4o", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "2024-11-20", "retirementDate": "2026-09-30" },
@@ -186,7 +217,7 @@ param llmBackendConfig = [
     backendId: 'aif-citadel-primary'
     backendType: 'ai-foundry'
     endpoint: 'https://aif-RESOURCE_TOKEN-0.cognitiveservices.azure.com/'
-    authScheme: 'managedIdentity'
+    authType: 'managed-identity'
     supportedModels: [
       { "name": "gpt-4o-mini", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "2024-07-18", "retirementDate": "2026-09-30" },
       { "name": "gpt-4o", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "2024-11-20", "retirementDate": "2026-09-30" },
@@ -202,7 +233,7 @@ param llmBackendConfig = [
     backendId: 'aif-citadel-secondary'
     backendType: 'ai-foundry'
     endpoint: 'https://aif-RESOURCE_TOKEN-1.cognitiveservices.azure.com/'
-    authScheme: 'managedIdentity'
+    authType: 'managed-identity'
     supportedModels: [
       { "name": "gpt-5", "sku": "GlobalStandard", "capacity": 50, "modelFormat": "OpenAI", "modelVersion": "1", "retirementDate": "2027-02-05" },
       { "name": "DeepSeek-R1", "sku": "GlobalStandard", "capacity": 1, "modelFormat": "DeepSeek", "modelVersion": "1", "retirementDate": "2099-12-30", "inferenceApiVersion": "2024-05-01-preview" }
@@ -223,7 +254,7 @@ param llmBackendConfig = [
     backendId: 'aif-citadel-primary'
     backendType: 'ai-foundry'
     endpoint: 'https://aif-RESOURCE_TOKEN-0.cognitiveservices.azure.com/'
-    authScheme: 'managedIdentity'
+    authType: 'managed-identity'
     supportedModels: [
       { "name": "gpt-4o-mini", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "2024-07-18", "retirementDate": "2026-09-30" },
       { "name": "gpt-4o", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "2024-11-20", "retirementDate": "2026-09-30" },
@@ -239,7 +270,7 @@ param llmBackendConfig = [
     backendId: 'aoai-eastus-gpt4'
     backendType: 'azure-openai'
     endpoint: 'https://YOUR-AOAI-RESOURCE.openai.azure.com/'
-    authScheme: 'managedIdentity'
+    authType: 'managed-identity'
     supportedModels: [
       { "name": "gpt-5", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "2025-08-07", "retirementDate": "2027-02-05" },
       { "name": "DeepSeek-R1", "sku": "GlobalStandard", "capacity": 1, "modelFormat": "DeepSeek", "modelVersion": "1", "retirementDate": "2099-12-30", "inferenceApiVersion": "2024-05-01-preview" },
@@ -261,7 +292,7 @@ param llmBackendConfig = [
     backendId: 'aif-citadel-primary'
     backendType: 'ai-foundry'
     endpoint: 'https://aif-RESOURCE_TOKEN-0.cognitiveservices.azure.com/'
-    authScheme: 'managedIdentity'
+    authType: 'managed-identity'
     supportedModels: [
       { "name": "gpt-4o", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "2024-11-20", "retirementDate": "2026-09-30" }
     ]
@@ -272,7 +303,7 @@ param llmBackendConfig = [
     backendId: 'bedrock-us-east-1'
     backendType: 'aws-bedrock'
     endpoint: 'https://bedrock-runtime.us-east-1.amazonaws.com'
-    authScheme: 'awsSigV4'
+    authType: 'aws-sigv4'
     supportedModels: [
       { "name": "us.anthropic.claude-3-5-haiku-20241022-v1:0", "sku": "OnDemand", "capacity": 1, "modelFormat": "Anthropic", "modelVersion": "1", "retirementDate": "2099-12-30" }
       { "name": "us.anthropic.claude-3-5-sonnet-20241022-v2:0", "sku": "OnDemand", "capacity": 1, "modelFormat": "Anthropic", "modelVersion": "2", "retirementDate": "2099-12-30" }
@@ -290,6 +321,250 @@ param awsRegion = 'us-east-1'
 ```
 
 > **Important**: Store AWS access keys securely. Consider using Azure Key Vault references for the APIM named values in production. See [Create IAM user access keys](https://docs.aws.amazon.com/IAM/latest/UserGuide/access-key-self-managed.html#Using_CreateAccessKey) for generating AWS access keys.
+
+## Circuit Breaker Configuration
+
+Each APIM backend can be protected by a [circuit breaker](https://learn.microsoft.com/azure/api-management/backends#circuit-breaker) that temporarily stops routing to a backend once it starts failing, and automatically probes it back into rotation after a cool-off. Circuit breaking is controlled at two levels:
+
+1. **`configureCircuitBreaker`** (bool, default `true`) — the master toggle. When `false`, no backend gets a circuit breaker.
+2. **`circuitBreakerDefaults`** (object) — the default rule applied to **every** backend when the master toggle is on.
+3. **Per-backend `circuitBreaker`** (object, optional) — added to an individual `llmBackendConfig` entry to override a subset of the defaults for that one backend, or to disable it entirely.
+
+### Settings
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `failureCount` | number | `3` | Number of failures within `failureInterval` that trips the breaker |
+| `failureInterval` | string (ISO 8601) | `PT5M` | Rolling window used to count failures |
+| `tripDuration` | string (ISO 8601) | `PT1M` | How long the breaker stays open once tripped |
+| `acceptRetryAfter` | bool | `true` | Honor an upstream `Retry-After` header when tripping |
+| `errorReasons` | string[] | `['Server errors']` | Failure reasons that count toward the breaker |
+| `statusCodeRanges` | object[] | `429` and `500-503` | HTTP status ranges (`{ min, max }`) counted as failures |
+| `enabled` | bool | `true` | Per-backend only — set `false` to disable the breaker for that backend even when the master toggle is on |
+
+> The built-in defaults match the previously hard-coded rule, so existing deployments behave identically when no new parameters are supplied.
+
+### Global defaults
+
+Tune the rule applied to all backends by supplying `circuitBreakerDefaults` in your `.bicepparam` file:
+
+```bicep
+param configureCircuitBreaker = true
+
+param circuitBreakerDefaults = {
+  failureCount: 5
+  failureInterval: 'PT1M'
+  tripDuration: 'PT30S'
+  acceptRetryAfter: true
+  errorReasons: [ 'Server errors' ]
+  statusCodeRanges: [
+    { min: 429, max: 429 }
+    { min: 500, max: 503 }
+  ]
+}
+```
+
+### Per-backend override
+
+Add a `circuitBreaker` object to any backend entry. Only the keys you set change; the rest fall back to `circuitBreakerDefaults`:
+
+```bicep
+param llmBackendConfig = [
+  {
+    backendId: 'aif-citadel-primary'
+    backendType: 'ai-foundry'
+    endpoint: 'https://aif-RESOURCE_TOKEN-0.cognitiveservices.azure.com/'
+    authType: 'managed-identity'
+    supportedModels: [ /* ... */ ]
+    priority: 1
+    weight: 100
+    // Trip faster than the global default for this backend only
+    circuitBreaker: {
+      failureCount: 5
+      failureInterval: 'PT1M'
+      tripDuration: 'PT30S'
+    }
+  }
+  {
+    backendId: 'aif-citadel-secondary'
+    backendType: 'ai-foundry'
+    endpoint: 'https://aif-RESOURCE_TOKEN-1.cognitiveservices.azure.com/'
+    authType: 'managed-identity'
+    supportedModels: [ /* ... */ ]
+    priority: 2
+    weight: 50
+    // Disable the circuit breaker for this backend only
+    circuitBreaker: { enabled: false }
+  }
+]
+```
+
+> **Backward compatible.** `circuitBreakerDefaults` and per-backend `circuitBreaker` are both optional. With neither supplied, every backend gets the same rule as before (`failureCount: 3`, `PT5M` window, `PT1M` trip, on `429` + `500-503`).
+
+## Session Affinity Configuration
+
+When the same model is served by **multiple backends**, the onboarding creates an APIM [backend pool](https://learn.microsoft.com/azure/api-management/backends#load-balanced-pool) that load-balances requests across them by priority/weight. For **stateless** models this is ideal. For **stateful** models — where follow-up calls must land on the same backend that holds the conversation/thread state (e.g., the OpenAI **Responses API** and **Assistants API**) — pure load balancing breaks the session.
+
+**Session affinity** (session-aware load balancing) solves this: APIM sets a session cookie on the first response and, when the client replays that cookie on subsequent requests, routes them back to the **same backend** in the pool.
+
+Session affinity is controlled at two levels, and enablement is **per-model**:
+
+1. **`sessionAwareModel`** (bool on each model object, default `false`) — the opt-in. Only pools whose model is flagged session-aware receive affinity. A single backend can freely mix stateful (`sessionAwareModel: true`, e.g. `gpt-4.1` used with the Responses API) and stateless (default, e.g. `Phi-4`) models — only the flagged models' pools become sticky.
+2. **`configureSessionAffinity`** (bool, default `true`) — a global kill-switch. Leaving it `true` is safe because no pool gets affinity unless a model is flagged. Set it `false` to force affinity off everywhere.
+3. **`sessionAffinityDefaults`** (object) — the cookie settings applied to every session-aware pool.
+4. **Per-backend `sessionAffinity`** (object, optional) — added to an `llmBackendConfig` entry to override the cookie settings for the session-aware pools that backend joins.
+
+### Settings
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `cookieName` | string | `ai-gateway-affinity` | Name of the affinity cookie APIM sets/reads. The non-generic default avoids clashing with other cookies used by the client or backend |
+| `source` | string | `Cookie` | Where APIM reads the session id from. Only `Cookie` is supported today |
+
+> **Backward compatible.** `sessionAwareModel` defaults to `false`, so existing configs produce identical pools with **no** session affinity. Affinity only appears once you flag a model.
+
+### How it resolves
+
+- A pool becomes session-aware if **any** member backend flags that model `sessionAwareModel: true` (the flag is ORed across the pool).
+- The pool's cookie config is `sessionAffinityDefaults` shallow-merged with the **first** pool member that supplies a per-backend `sessionAffinity` override (else just the defaults).
+- Single-backend (non-pooled) models are unaffected — affinity is only meaningful when there are 2+ backends to choose between.
+
+### Global defaults
+
+```bicep
+param configureSessionAffinity = true
+
+param sessionAffinityDefaults = {
+  cookieName: 'ai-gateway-affinity'
+  source: 'Cookie'
+}
+```
+
+### Flag a stateful model
+
+Add `sessionAwareModel: true` to the model on every backend that serves it (flagging one member is enough, but flagging all keeps intent explicit):
+
+```bicep
+param llmBackendConfig = [
+  {
+    backendId: 'aif-citadel-primary'
+    backendType: 'ai-foundry'
+    endpoint: 'https://aif-RESOURCE_TOKEN-0.cognitiveservices.azure.com/'
+    authType: 'managed-identity'
+    supportedModels: [
+      // Stateful — used with the OpenAI Responses API; its pool becomes sticky
+      { name: 'gpt-4.1', modelFormat: 'OpenAI', modelVersion: '2025-04-14', sessionAwareModel: true }
+      // Stateless — stays pure load-balanced
+      { name: 'Phi-4', modelFormat: 'Microsoft', modelVersion: '3' }
+    ]
+    priority: 1
+    weight: 100
+    // Optional per-backend cookie override for this backend's session-aware pools
+    // sessionAffinity: { cookieName: 'ai-gateway-affinity', source: 'Cookie' }
+  }
+  {
+    backendId: 'aif-citadel-secondary'
+    backendType: 'ai-foundry'
+    endpoint: 'https://aif-RESOURCE_TOKEN-1.cognitiveservices.azure.com/'
+    authType: 'managed-identity'
+    supportedModels: [
+      { name: 'gpt-4.1', modelFormat: 'OpenAI', modelVersion: '2025-04-14', sessionAwareModel: true }
+    ]
+    priority: 2
+    weight: 50
+  }
+]
+```
+
+### Client requirement (cookie jar)
+
+Affinity only works if the **client replays the cookie**. APIM returns the affinity cookie in a `Set-Cookie` header; the client must persist it and send it on every follow-up request in the same session:
+
+- Use a **single, shared HTTP client with a cookie container** (cookie jar) for all requests belonging to one logical session/conversation.
+- Most SDKs and browsers do this automatically when you reuse the same client instance; raw HTTP callers must capture `Set-Cookie` and echo it back on subsequent calls.
+- Different sessions should use separate cookie jars so they can be balanced independently.
+
+> **Notes / limits.** Affinity is best-effort across gateway units (APIM's distributed nature). It only applies to pooled (multi-backend) session-aware models. If a stuck backend trips its circuit breaker, traffic still fails over to another pool member.
+
+## Image Models
+
+The Unified AI API routes image-generation and image-edit models (Azure OpenAI **gpt-image**, Black Forest Labs **FLUX**, Microsoft **MAI**) through a single OpenAI-style images surface. All three providers return OpenAI-shaped responses (`data[].b64_json`), so clients use one consistent contract regardless of provider.
+
+### Client surface
+
+| Endpoint | Model location | Use for |
+|----------|----------------|---------|
+| `POST /unified-ai/v1/images/generations` | `model` in JSON body | Generation (gpt-image, FLUX, MAI) |
+| `POST /unified-ai/openai/deployments/{model}/images/generations` | `{model}` in URL | Generation (Azure OpenAI SDK style) |
+| `POST /unified-ai/openai/deployments/{model}/images/edits` | `{model}` in URL | Edits (multipart) — **recommended** |
+| `POST /unified-ai/v1/images/edits` | `x-ai-model` **header** | Edits (multipart) when not using the deployments path |
+
+> **Image edits are multipart/form-data.** The model can't be read from a multipart form field, so on `POST /unified-ai/v1/images/edits` you must pass the model in the `x-ai-model` request header. Prefer the `/openai/deployments/{model}/images/edits` form, which carries the model in the URL. A missing model returns `400 missing_model_parameter` with guidance.
+
+### Provider routing
+
+| Provider | `backendType` | Backend path built by the gateway | Auth |
+|----------|---------------|-----------------------------------|------|
+| Azure OpenAI / Foundry gpt-image | `ai-foundry` / `azure-openai` | `/openai/v1/images/generations` \| `/openai/v1/images/edits` | Managed identity |
+| Black Forest Labs FLUX | `azure-flux` | `/providers/blackforestlabs/v1/{modelPath}?api-version=preview` | Managed identity |
+| Microsoft MAI | `azure-mai` | `/mai/v1/images/generations` \| `/mai/v1/images/edits` | Managed identity |
+
+### FLUX `modelPath` (one-time onboarding step)
+
+FLUX's URL slug isn't derivable from the model name, so **every `azure-flux` model must set `modelPath`** to the BFL slug. This is a one-time onboarding value; once set, the gateway routes correctly:
+
+| Model name | `modelPath` |
+|------------|-------------|
+| `FLUX.2-pro` | `flux-2-pro` |
+| `FLUX.2-flex` | `flux-2-flex` |
+| `FLUX.1-Kontext-pro` | `flux-kontext-pro` |
+| `FLUX-1.1-pro` | `flux-pro-1.1` |
+
+### Example configuration
+
+```bicep
+param llmBackendConfig = [
+  // gpt-image rides the existing Foundry/Azure OpenAI backend (no new backend needed)
+  {
+    backendId: 'aif-citadel-primary'
+    backendType: 'ai-foundry'
+    endpoint: 'https://aif-RESOURCE_TOKEN-0.cognitiveservices.azure.com/'
+    authType: 'managed-identity'
+    supportedModels: [
+      { "name": "gpt-image-1.5", "sku": "GlobalStandard", "capacity": 10, "modelFormat": "OpenAI", "modelVersion": "1", "retirementDate": "2099-12-30" }
+    ]
+    priority: 1
+    weight: 100
+  }
+  // FLUX — native BFL surface; each model sets its modelPath slug
+  {
+    backendId: 'aif-citadel-flux'
+    backendType: 'azure-flux'
+    endpoint: 'https://aif-RESOURCE_TOKEN-0.services.ai.azure.com/'
+    authType: 'managed-identity'
+    supportedModels: [
+      { "name": "FLUX.2-pro", "modelPath": "flux-2-pro", "modelFormat": "BlackForestLabs", "modelVersion": "1", "retirementDate": "2099-12-30" }
+      { "name": "FLUX.1-Kontext-pro", "modelPath": "flux-kontext-pro", "modelFormat": "BlackForestLabs", "modelVersion": "1", "retirementDate": "2099-12-30" }
+    ]
+    priority: 1
+    weight: 100
+  }
+  // MAI — native MAI surface; model travels in the request body
+  {
+    backendId: 'aif-citadel-mai'
+    backendType: 'azure-mai'
+    endpoint: 'https://aif-RESOURCE_TOKEN-0.services.ai.azure.com/'
+    authType: 'managed-identity'
+    supportedModels: [
+      { "name": "MAI-Image-2.5-Flash", "modelFormat": "MAI", "modelVersion": "1", "retirementDate": "2099-12-30" }
+    ]
+    priority: 1
+    weight: 100
+  }
+]
+```
+
+> **Backward compatible.** Image routing is isolated behind a new `image` api-type (`/v1/images`) plus the new `azure-flux`/`azure-mai` pool types. Existing chat, embeddings, responses, and native Bedrock/Gemini/Anthropic surfaces are unaffected. Token-usage metrics are unchanged (image responses simply emit zero token usage).
 
 ## Request Flow
 
@@ -650,4 +925,5 @@ llm-backend-onboarding/
 
 - [Citadel Access Contracts](../citadel-access-contracts/README.md) - Configure use case access to governance hub
 - [LLM Access Guide](../../../guides/llm-access-guide.md) - Unified LLM access patterns and detailed routing architecture
+- [Resiliency Guide](../../../guides/resiliency-guide.md) - Circuit breaker, session affinity, automated failover, and error handling — what to configure and when
 - [Full Deployment Guide](../../../guides/full-deployment-guide.md) - Complete Citadel deployment guide

@@ -93,6 +93,18 @@
                 'path-segment': '',
                 'api-version': 'v1',
                 'compatible-pool-types': 'ai-foundry,azure-openai,aws-bedrock-mantle,gemini-openai'
+            },
+            // OpenAI-style images surface (/v1/images/generations, /v1/images/edits). The model
+            // is taken from the JSON body (generations) or the `x-ai-model` header (multipart
+            // edits). Longest base-path match ('/v1/images' > '/v1') guarantees image requests
+            // never collide with the chat-oriented 'openai-compat' api-type. Only image-capable
+            // pool types are allowed; the gpt-image family rides ai-foundry/azure-openai, while
+            // FLUX and MAI use the dedicated azure-flux / azure-mai pool types.
+            'image': {
+                'base-path': '/v1/images',
+                'path-segment': '',
+                'api-version': 'v1',
+                'compatible-pool-types': 'ai-foundry,azure-openai,azure-flux,azure-mai'
             }
         },
         'model-aliases': {
@@ -110,14 +122,18 @@
                 'chat/completions': '/openai/v1/chat/completions',
                 'embeddings': '/openai/v1/embeddings',
                 'responses': '/openai/v1/responses',
+                'files': '/openai/v1/files',
                 'images/generations': '/openai/v1/images/generations',
+                'images/edits': '/openai/v1/images/edits',
                 'models': '/openai/v1/models'
             },
             'azure-openai': {
                 'chat/completions': '/openai/v1/chat/completions',
                 'embeddings': '/openai/v1/embeddings',
                 'responses': '/openai/v1/responses',
-                'images/generations': '/openai/v1/images/generations'
+                'files': '/openai/v1/files',
+                'images/generations': '/openai/v1/images/generations',
+                'images/edits': '/openai/v1/images/edits'
             },
             'aws-bedrock-mantle': {
                 'chat/completions': '/v1/chat/completions',
@@ -133,6 +149,20 @@
             'anthropic': {
                 'chat/completions': '/v1/messages',
                 'messages': '/v1/messages'
+            },
+            // Black Forest Labs FLUX image models (native BFL surface). The {modelPath}
+            // placeholder is the BFL model slug (e.g. flux-2-pro) resolved from the model's
+            // `modelPath` metadata — it differs from the model name (FLUX.2-pro) and is set
+            // once at onboarding. path-builder injects api-version=preview for this pool type.
+            'azure-flux': {
+                'images/generations': '/providers/blackforestlabs/v1/{modelPath}',
+                'images/edits': '/providers/blackforestlabs/v1/{modelPath}'
+            },
+            // Microsoft MAI image models (native MAI surface). The model travels in the request
+            // body; no api-version query parameter is required.
+            'azure-mai': {
+                'images/generations': '/mai/v1/images/generations',
+                'images/edits': '/mai/v1/images/edits'
             }
         },
         'cache-settings': {

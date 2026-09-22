@@ -15,6 +15,8 @@ param apimServiceName string
 param enablePIIAnonymization bool = true
 
 @description('Enable AI Model Inference features')
+// Retained for interface compatibility with callers; not referenced within this module.
+#disable-next-line no-unused-params
 param enableAIModelInference bool = true
 
 @description('Enable Unified AI API features')
@@ -44,6 +46,53 @@ resource raiseThrottlingEventsPolicyFragment 'Microsoft.ApiManagement/service/po
   properties: {
     description: 'Raises custom events when throttling limits are hit through App Insights metrics, for proactive monitoring and alerting'
     value: loadTextContent('./policies/frag-raise-throttling-events.xml')
+    format: 'rawxml'
+  }
+}
+
+resource raiseAlertEventsPolicyFragment 'Microsoft.ApiManagement/service/policyFragments@2022-08-01' = {
+  parent: apimService
+  name: 'raise-alert-events'
+  properties: {
+    description: 'Comprehensive, opt-in alerting: emits App Insights custom metrics for throttling, backend, authorization, content-safety, and PII failures, sliceable per product/model/backend/app'
+    value: loadTextContent('./policies/frag-raise-alert-events.xml')
+    format: 'rawxml'
+  }
+}
+
+// Publish Contract usage fragments (Tools/MCP and Agents/A2A). Emit request-count metrics to
+// dedicated App Insights namespaces (mcp-usage / a2a-usage) that scheduled Logic Apps aggregate
+// into Cosmos. Registered here so a freshly deployed gateway already has them; the
+// citadel-publish-contracts deployment also (idempotently) ensures they exist.
+resource mcpUsagePolicyFragment 'Microsoft.ApiManagement/service/policyFragments@2022-08-01' = {
+  parent: apimService
+  name: 'mcp-usage'
+  properties: {
+    description: 'Tracks usage of published Tools (MCP) as App Insights custom metrics (mcp-usage namespace)'
+    value: loadTextContent('./policies/frag-mcp-usage.xml')
+    format: 'rawxml'
+  }
+}
+
+resource a2aUsagePolicyFragment 'Microsoft.ApiManagement/service/policyFragments@2022-08-01' = {
+  parent: apimService
+  name: 'a2a-usage'
+  properties: {
+    description: 'Tracks usage of published Agents (A2A) as App Insights custom metrics (a2a-usage namespace)'
+    value: loadTextContent('./policies/frag-a2a-usage.xml')
+    format: 'rawxml'
+  }
+}
+
+// Access Contract asset-kind classifier. Lets a single product policy that mixes asset types apply the
+// right controls per request (llm / tool / agent). Driven by contractToolApis / contractAgentApis
+// variables the product policy sets; defaults to 'llm' so existing LLM-only contracts are unaffected.
+resource setAssetKindPolicyFragment 'Microsoft.ApiManagement/service/policyFragments@2022-08-01' = {
+  parent: apimService
+  name: 'set-asset-kind'
+  properties: {
+    description: 'Classifies the current request as llm | tool | agent for asset-type-aware access-contract product policies'
+    value: loadTextContent('./policies/frag-set-asset-kind.xml')
     format: 'rawxml'
   }
 }

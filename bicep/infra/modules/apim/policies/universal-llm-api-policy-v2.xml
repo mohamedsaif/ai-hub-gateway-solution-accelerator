@@ -105,6 +105,17 @@
             <choose>
                 <when condition="@{
                     if (!context.Variables.GetValueOrDefault<bool>("is-alias", false)) { return false; }
+                    // Only advance to a fallback member AFTER a real failure on the previous hop.
+                    // The <retry> body executes once as the INITIAL attempt (with the primary member
+                    // selected during inbound). On that first execution there is no backend response
+                    // yet (StatusCode == 0), so we must NOT switch — otherwise the primary member is
+                    // skipped and set-backend-authorization re-runs against the already-rewritten URL
+                    // (which, with the OriginalUrl.Path fix, stays correct — but skipping the primary
+                    // member would still route to the wrong model). On subsequent executions (triggered
+                    // by the 429/5xx retry condition) the failed status is present, so we advance.
+                    var sc = context.Response?.StatusCode ?? 0;
+                    var previousHopFailed = sc == 429 || sc >= 500;
+                    if (!previousHopFailed) { return false; }
                     var fallback = context.Variables.GetValueOrDefault<JArray>("alias-fallback-members");
                     var idx = context.Variables.GetValueOrDefault<int>("alias-retry-index", 0);
                     return fallback != null && idx < fallback.Count;
@@ -153,17 +164,27 @@
         <!-- Cache response_id → owner mapping for successful POST /responses (cross-API shared fragment). -->
         <include-fragment fragment-id="responses-id-cache-store" />
         <include-fragment fragment-id="set-response-headers" />
+        <!-- Alerting: emit custom metrics for error responses that reached the client
+             (e.g. backend 429 throttling / 5xx failures). Opt-in per category via the
+             access contract; see raise-alert-events fragment. -->
+        <choose>
+            <when condition="@((context.Response?.StatusCode ?? 0) >= 400)">
+                <include-fragment fragment-id="raise-alert-events" />
+            </when>
+        </choose>
     </outbound>
     <on-error>
         <base />
         <!--
             Error Handling
-            Purpose: Pushes custom metrics for errors to enable Azure Monitor alerts
+            Purpose: Pushes custom metrics for critical events to enable Azure Monitor alerts
             
-            Integration: Uses raise-throttling-events fragment to send metrics to monitoring system for 429 responses
+            Integration: Uses raise-alert-events fragment to send metrics for throttling (429),
+            backend failures (5xx), authorization failures, content-safety blocks, and PII failures.
+            Alerting is opt-in per category and can be tailored per access contract.
         -->
         
-        <include-fragment fragment-id="raise-throttling-events" />
+        <include-fragment fragment-id="raise-alert-events" />
         <include-fragment fragment-id="set-response-headers" />
     </on-error>
 </policies>

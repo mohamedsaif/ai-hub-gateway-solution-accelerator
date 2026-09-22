@@ -178,14 +178,14 @@ Citadel Governance Hub evolves as part of the **Foundry Citadel Platform** visio
 - Content safety enforcements
 - Usage analytics and cost management
 - Citadel Access Contracts support with automated onboarding
+- Citadel Publish Contracts for Tools (MCP) and Agents (A2A) *(Preview)*
+- Microsoft Foundry APIM connection integration and Foundry-hosted A2A publishing *(Preview)*
 - AI Registry for models and tools
 - Authentication support with gateway keys, or gateway keys + JWT tokens
 
 ### Coming soon
-- Microsoft Foundry control plane integration
+- Broader Microsoft Foundry control-plane lifecycle integration beyond the current Preview APIM connection and A2A publishing capabilities
 - AI evaluation pipeline at the gateway level
-- A2A support and agent publishing (AI Gateway + AI Registry integration)
-- Guidance for Citadel Publish Contracts
 - Defender & Purview enablement
 - JWT-only authentication support (without gateway keys)
 - Enhanced platform observability with custom dashboards and alerts (geared towards agents and MCP tools)

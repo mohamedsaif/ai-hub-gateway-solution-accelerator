@@ -19,6 +19,25 @@ param apimServiceName string
 @description('Array of backend details from llm-backends module output')
 param backendDetails array
 
+@description('Master toggle for backend-pool session affinity (sticky routing). When false, no pool receives session affinity regardless of per-model `sessionAwareModel` flags. Real opt-in is per-model; this is a global kill-switch.')
+param configureSessionAffinity bool = true
+
+@description('Default session affinity cookie settings applied to session-aware model pools unless overridden per-backend via the backend config `sessionAffinity` object')
+@metadata({
+  description: '''
+  Applied only to pools whose model is flagged `sessionAwareModel: true`. Shape:
+  - cookieName: Name of the affinity cookie APIM sets/reads (default 'ai-gateway-affinity',
+    chosen to avoid clashing with other client/server cookies)
+  - source: Where the session id is read from (only 'Cookie' is supported by APIM today)
+  Per-backend, add a `sessionAffinity` object to any llmBackendConfig entry to override a subset
+  of these (shallow-merged). The first pool member that supplies an override wins.
+  '''
+})
+param sessionAffinityDefaults object = {
+  cookieName: 'ai-gateway-affinity'
+  source: 'Cookie'
+}
+
 // ------------------
 //    VARIABLES
 // ------------------
@@ -33,8 +52,14 @@ var normalizedBackendDetails = [for backend in backendDetails: {
   resourceId: backend.resourceId
   priority: backend.priority
   weight: backend.weight
+  // Per-backend session affinity override for the session cookie (cookieName/source).
+  // Empty object => this backend contributes no override and the pool falls back to defaults.
+  sessionAffinity: backend.?sessionAffinity ?? {}
   // Extract model names - handle both string arrays and object arrays
   modelNames: map(backend.supportedModels, m => m.name)
+  // Names of models this backend flags as session-aware (stateful). Used to decide which
+  // generated pools get session affinity. A single backend can mix stateful and stateless models.
+  sessionAwareModelNames: map(filter(backend.supportedModels, m => (m.?sessionAwareModel ?? false)), m => m.name)
 }]
 
 // Group backends by (model, backendType) to create backend pools.
@@ -58,8 +83,16 @@ var modelToBackendsMap = reduce(normalizedBackendDetails, {}, (acc, backend) => 
         resourceId: backend.resourceId
         priority: backend.priority
         weight: backend.weight
+        sessionAffinity: backend.sessionAffinity
       }]
   )
+}))))
+
+// Map of (model, backendType) composite key -> true when at least one backend flags that model
+// as session-aware. Keys absent from this map are stateless models (no pool session affinity).
+// The presence-based union naturally ORs the flag across all backends serving the same model.
+var modelSessionAwareMap = reduce(normalizedBackendDetails, {}, (acc, backend) => union(acc, reduce(backend.sessionAwareModelNames, {}, (modelAcc, model) => union(modelAcc, {
+  '${model}${modelKeyDelimiter}${backend.backendType}': true
 }))))
 
 // Create pool configurations only for (model, backendType) combos served by multiple backends.
@@ -77,6 +110,11 @@ var poolConfigs = map(
     backendType: split(item.key, modelKeyDelimiter)[1]
     poolName: '${replace(replace(replace(replace(split(item.key, modelKeyDelimiter)[0], '.', ''), ':', ''), '_', ''), '/', '')}-${replace(replace(replace(replace(split(item.key, modelKeyDelimiter)[1], '.', ''), ':', ''), '_', ''), '/', '')}-backend-pool'
     backends: item.value
+    // Whether this pool's model is session-aware (stateful) and therefore gets session affinity.
+    sessionAware: (modelSessionAwareMap[?item.key] ?? false)
+    // Effective session cookie config for the pool: global defaults shallow-merged with the first
+    // pool member that supplies a per-backend `sessionAffinity` override (else just the defaults).
+    sessionAffinity: union(sessionAffinityDefaults, length(filter(item.value, b => !empty(b.sessionAffinity))) > 0 ? filter(item.value, b => !empty(b.sessionAffinity))[0].sessionAffinity : {})
   }
 )
 
@@ -89,8 +127,11 @@ resource apimService 'Microsoft.ApiManagement/service@2024-06-01-preview' existi
   // Note: We don't use this directly as pools are created as children of the service
 }
 
-// Create backend pools for models with multiple backend options
-resource backendPools 'Microsoft.ApiManagement/service/backends@2024-06-01-preview' = [for config in poolConfigs: {
+// Create backend pools for models with multiple backend options.
+// Uses the 2025-03-01-preview API version because `pool.sessionAffinity` (session-aware
+// load balancing) is only present in the backend type from that version onward; the rest of
+// the module (and the parent service reference) stays on 2024-06-01-preview.
+resource backendPools 'Microsoft.ApiManagement/service/backends@2025-03-01-preview' = [for config in poolConfigs: {
   name: config.poolName
   parent: apimService
   properties: {
@@ -103,6 +144,17 @@ resource backendPools 'Microsoft.ApiManagement/service/backends@2024-06-01-previ
         priority: backend.priority
         weight: backend.weight
       }]
+      // Session affinity (sticky routing) is emitted only for pools whose model is flagged
+      // `sessionAwareModel: true` and while the master toggle is on. APIM sets an affinity cookie
+      // so a client that replays it (via a shared cookie jar / HTTP client) is routed back to the
+      // same backend for the whole session — required by stateful APIs such as the OpenAI Responses
+      // and Assistants APIs. Stateless model pools omit this and keep pure load balancing.
+      sessionAffinity: (configureSessionAffinity && config.sessionAware) ? {
+        sessionId: {
+          source: config.sessionAffinity.source
+          name: config.sessionAffinity.cookieName
+        }
+      } : null
     }
   }
 }]
@@ -135,6 +187,9 @@ output poolDetails array = [for (config, i) in poolConfigs: {
   poolName: config.poolName
   poolType: 'pool'
   backends: config.backends
+  // Session affinity summary for this pool (true only for session-aware models with the toggle on).
+  sessionAffinityEnabled: (configureSessionAffinity && config.sessionAware)
+  sessionAffinityCookie: (configureSessionAffinity && config.sessionAware) ? config.sessionAffinity.cookieName : ''
 }]
 
 @description('Configuration for policy fragment generation')

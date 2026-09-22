@@ -1,0 +1,29 @@
+<policies>
+    <inbound>
+        <base />
+        <!-- Extract and validate model parameter from request -->
+        <include-fragment fragment-id="set-llm-requested-model" />
+
+        <!-- Model-level RBAC: only the models below are allowed for this contract -->
+        <set-variable name="allowedModels" value="" />
+
+        <!-- Capacity allocation: per-subscription token throttling + long-term quota -->
+        <!-- <llm-token-limit counter-key="@(context.Subscription.Id)"
+                         tokens-per-minute="5000"
+                         estimate-prompt-tokens="false"
+                         token-quota="500000"
+                         token-quota-period="Monthly" /> -->
+
+        <!-- Enable advanced response headers offered by set-response-headers fragment -->
+        <set-variable name="enableResponseHeaders" value="@(true)" />
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>

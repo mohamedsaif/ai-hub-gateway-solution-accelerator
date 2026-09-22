@@ -20,7 +20,7 @@ param usageLogicAppIdentityName = readEnvironmentVariable('USAGE_LOGIC_APP_IDENT
 param apimServiceName = readEnvironmentVariable('APIM_SERVICE_NAME', '')
 param logAnalyticsName = readEnvironmentVariable('LOG_ANALYTICS_NAME', '')
 param apimApplicationInsightsDashboardName = readEnvironmentVariable('APIM_APP_INSIGHTS_DASHBOARD_NAME', '')
-param funcAplicationInsightsDashboardName = readEnvironmentVariable('FUNC_APP_INSIGHTS_DASHBOARD_NAME', '')
+param funcApplicationInsightsDashboardName = readEnvironmentVariable('FUNC_APP_INSIGHTS_DASHBOARD_NAME', '')
 param foundryApplicationInsightsDashboardName = readEnvironmentVariable('FOUNDRY_APP_INSIGHTS_DASHBOARD_NAME', '')
 param apimApplicationInsightsName = readEnvironmentVariable('APIM_APP_INSIGHTS_NAME', '')
 param funcApplicationInsightsName = readEnvironmentVariable('FUNC_APP_INSIGHTS_NAME', '')
@@ -90,6 +90,7 @@ param existingPrivateDnsZones = {
   apimGateway: readEnvironmentVariable('EXISTING_DNS_ZONE_APIM', '')           // privatelink.azure-api.net
   aiServices: readEnvironmentVariable('EXISTING_DNS_ZONE_AI_SERVICES', '')     // privatelink.services.azure.com
   redis: readEnvironmentVariable('EXISTING_DNS_ZONE_REDIS', '')                // privatelink.redis.azure.net
+  logicApp: readEnvironmentVariable('EXISTING_DNS_ZONE_LOGIC_APP', '')
 }
 
 // Private Endpoint names
@@ -103,11 +104,14 @@ param apimV2PrivateEndpointName = readEnvironmentVariable('APIM_V2_PE_NAME', '')
 param aiFoundryPrivateEndpointName = readEnvironmentVariable('AI_FOUNDRY_PE_NAME', '')
 param keyVaultPrivateEndpointName = readEnvironmentVariable('KEY_VAULT_PE_NAME', '')
 param redisPrivateEndpointName = readEnvironmentVariable('REDIS_PE_NAME', '')
+param logicAppPrivateEndpointName = readEnvironmentVariable('LOGIC_APP_PE_NAME', '')
 
 // Services network access configuration
 param apimNetworkType = readEnvironmentVariable('APIM_NETWORK_TYPE', 'External')
 param apimV2UsePrivateEndpoint = bool(readEnvironmentVariable('APIM_V2_USE_PRIVATE_ENDPOINT', 'true'))
 param apimV2PublicNetworkAccess = bool(readEnvironmentVariable('APIM_V2_PUBLIC_NETWORK_ACCESS', 'true'))
+param logicAppUsePrivateEndpoint = bool(readEnvironmentVariable('LOGIC_APP_USE_PRIVATE_ENDPOINT', 'false'))
+param logicAppPublicNetworkAccess = bool(readEnvironmentVariable('LOGIC_APP_PUBLIC_NETWORK_ACCESS', 'true'))
 param cosmosDbPublicAccess = readEnvironmentVariable('COSMOS_DB_PUBLIC_ACCESS', 'Disabled')
 param eventHubNetworkAccess = readEnvironmentVariable('EVENTHUB_NETWORK_ACCESS', 'Enabled')
 param aiFoundryExternalNetworkAccess = readEnvironmentVariable('AI_FOUNDRY_EXTERNAL_NETWORK_ACCESS', 'Disabled')
@@ -126,7 +130,7 @@ param enableAIGatewayPiiRedaction = bool(readEnvironmentVariable('ENABLE_PII_RED
 param enableOpenAIRealtime = bool(readEnvironmentVariable('ENABLE_OPENAI_REALTIME', 'true'))
 param entraAuth = bool(readEnvironmentVariable('AZURE_ENTRA_AUTH', 'false'))
 param enableAPICenter = bool(readEnvironmentVariable('ENABLE_API_CENTER', 'false'))
-param enableManagedRedis = bool(readEnvironmentVariable('ENABLE_MANAGED_REDIS', 'true'))
+param enableManagedRedis = bool(readEnvironmentVariable('ENABLE_MANAGED_REDIS', 'false'))
 param enableUnifiedAiApi = bool(readEnvironmentVariable('ENABLE_UNIFIED_AI_API', 'true'))
 
 // ============================================================================
@@ -171,6 +175,7 @@ param apicSku = readEnvironmentVariable('APIC_SKU', 'Free')
 param keyVaultSkuName = readEnvironmentVariable('KEY_VAULT_SKU_NAME', 'standard')
 param redisSkuName = readEnvironmentVariable('REDIS_SKU_NAME', 'Balanced_B1')
 param redisSkuCapacity = int(readEnvironmentVariable('REDIS_SKU_CAPACITY', '1'))
+param redisHighAvailability = readEnvironmentVariable('REDIS_HIGH_AVAILABILITY', 'Enabled')
 
 // ============================================================================
 // ACCELERATOR SPECIFIC PARAMETERS
@@ -218,12 +223,42 @@ param aiFoundryModelsConfig = [
     aiserviceIndex: 0
   }
   {
-    name: 'DeepSeek-R1'
-    publisher: 'DeepSeek'
+    name: 'gpt-5.2'
+    publisher: 'OpenAI'
+    version: '2025-12-11'
+    sku: 'GlobalStandard'
+    capacity: 100
+    retirementDate: '2027-02-05'
+    aiserviceIndex: 0
+  }
+  {
+    name: 'gpt-image-1.5'
+    publisher: 'OpenAI'
+    version: '2025-12-16'
+    sku: 'GlobalStandard'
+    capacity: 2
+    retirementDate: '2026-12-16'
+    inferenceApiVersion: '2025-04-01-preview'
+    apiVersion: '2025-04-01-preview'
+    aiserviceIndex: 0
+  }
+  {
+    name: 'MAI-Image-2.5-Flash'
+    publisher: 'Microsoft'
+    version: '2026-06-02'
+    sku: 'GlobalStandard'
+    capacity: 1
+    retirementDate: '2026-09-01'
+    inferenceApiVersion: '2024-05-01-preview'
+    aiserviceIndex: 0
+  }
+  {
+    name: 'FLUX.2-pro'
+    publisher: 'Black Forest Labs'
     version: '1'
     sku: 'GlobalStandard'
     capacity: 1
-    retirementDate: '2099-12-30'
+    retirementDate: '2099-09-01'
     inferenceApiVersion: '2024-05-01-preview'
     aiserviceIndex: 0
   }
@@ -255,28 +290,6 @@ param aiFoundryModelsConfig = [
     aiserviceIndex: 0
   }
   {
-    name: 'Phi-4'
-    publisher: 'Microsoft'
-    version: '7'
-    sku: 'GlobalStandard'
-    capacity: 1
-    retirementDate: '2099-10-14'
-    apiVersion: '2025-04-01-preview'
-    timeout: 180
-    aiserviceIndex: 0
-  }
-  {
-    name: 'Phi-4'
-    publisher: 'Microsoft'
-    version: '7'
-    sku: 'GlobalStandard'
-    capacity: 1
-    retirementDate: '2099-10-14'
-    apiVersion: '2025-04-01-preview'
-    timeout: 180
-    aiserviceIndex: 1
-  }
-  {
     name: 'gpt-5.4-mini'
     publisher: 'OpenAI'
     version: '2026-03-17'
@@ -292,16 +305,6 @@ param aiFoundryModelsConfig = [
     sku: 'GlobalStandard'
     capacity: 100
     retirementDate: '2027-02-05'
-    aiserviceIndex: 1
-  }
-  {
-    name: 'DeepSeek-R1'
-    publisher: 'DeepSeek'
-    version: '1'
-    sku: 'GlobalStandard'
-    capacity: 1
-    retirementDate: '2099-12-30'
-    inferenceApiVersion: '2024-05-01-preview'
     aiserviceIndex: 1
   }
   {

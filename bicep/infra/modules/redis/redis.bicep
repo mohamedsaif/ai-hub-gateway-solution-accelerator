@@ -77,6 +77,13 @@ param publicNetworkAccess string = 'Disabled'
 @description('Minimum TLS version for Redis connections')
 param minimumTlsVersion string = '1.2'
 
+// Zone redundancy (Enabled) places replicas across availability zones. In capacity-constrained
+// regions this can intermittently fail cluster creation ("CreateFailed") for small Balanced SKUs;
+// set to Disabled to remove the zonal allocation dependency at the cost of the HA SLA.
+@description('High availability / zone redundancy for the Redis cluster. Enabled (default) replicates data across availability zones. Disable to avoid transient zonal capacity allocation failures during creation (reduces availability SLA, no data replication).')
+@allowed(['Enabled', 'Disabled'])
+param highAvailability string = 'Enabled'
+
 @description('Whether to create a private endpoint for Redis')
 param usePrivateEndpoint bool = true
 
@@ -133,6 +140,7 @@ resource redis 'Microsoft.Cache/redisEnterprise@2025-07-01' = {
   properties: {
     minimumTlsVersion: minimumTlsVersion
     publicNetworkAccess: publicNetworkAccess
+    highAvailability: highAvailability
   }
 }
 

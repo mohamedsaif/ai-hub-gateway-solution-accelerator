@@ -82,7 +82,7 @@ module llmBackends './llm-backends.bicep' = {
         backendId: 'ai-foundry-gpt4'
         backendType: 'ai-foundry'
         endpoint: 'https://my-project.eastus.inference.ml.azure.com'
-        authScheme: 'managedIdentity'
+        authType: 'managed-identity'
         supportedModels: ['gpt-4', 'gpt-4-turbo']
       }
     ]
@@ -130,9 +130,11 @@ module universalLlmApi './inference-api.bicep' = {
 ```typescript
 interface BackendConfig {
   backendId: string;           // Unique identifier
-  backendType: 'ai-foundry' | 'azure-openai' | 'external';
+  backendType: 'ai-foundry' | 'azure-openai' | 'aws-bedrock' | 'aws-bedrock-mantle' | 'gemini' | 'gemini-openai' | 'anthropic' | 'external';
   endpoint: string;            // Base URL (e.g., https://xxx.inference.ml.azure.com)
-  authScheme: 'managedIdentity' | 'apiKey' | 'token';
+  authType?: 'managed-identity' | 'aws-sigv4' | 'api-key-bearer' | 'api-key-header' | 'api-key-gemini' | 'api-key-anthropic' | 'none'; // omit to derive from backendType
+  authConfig?: { namedValueKey: string; keyVaultSecretUri?: string; secretValue?: string }; // for api-key-* auth types
+  authScheme?: 'managedIdentity' | 'apiKey' | 'token';  // LEGACY — superseded by authType
   supportedModels: string[];   // Model names (e.g., ['gpt-4', 'gpt-4-turbo'])
   priority?: number;           // 1-5, default 1 (lower = higher priority)
   weight?: number;             // 1-1000, default 100 (higher = more traffic)
@@ -194,12 +196,12 @@ Behavior:
 - Secondary receives ~33% of traffic (50 / 150)
 - Tertiary only receives traffic if both primary and secondary fail
 
-## Authentication Schemes
+## Authentication Types
 
 ### Managed Identity (Recommended)
 ```json
 {
-  "authScheme": "managedIdentity"
+  "authType": "managed-identity"
 }
 ```
 
@@ -207,14 +209,17 @@ APIM uses its user-assigned managed identity to authenticate:
 - Azure OpenAI: `Cognitive Services OpenAI User` role
 - AI Foundry: `Cognitive Services User` role
 
-### API Key (Not Recommended)
+### API Key
 ```json
 {
-  "authScheme": "apiKey"
+  "authType": "api-key-bearer",
+  "authConfig": { "namedValueKey": "my-provider-key", "keyVaultSecretUri": "https://kv.vault.azure.net/secrets/my-provider-key" }
 }
 ```
 
-Requires configuration in backend credentials.
+The API key is configured natively on the APIM backend resource via `credentials.header`, resolved from the named value (or Key Vault reference) at deploy time.
+
+> **Legacy:** the older `authScheme` field (`managedIdentity` | `apiKey` | `token`) is still tolerated for backward compatibility but is superseded by `authType`. New configurations should use `authType`.
 
 ## Backend Types
 

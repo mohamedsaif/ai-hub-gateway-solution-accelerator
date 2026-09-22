@@ -1,0 +1,9 @@
+{
+    "master-version": "1.0.2",
+    "routing-version": "1.0.0",
+    "backend-contract-version": "1.1.0",
+    "access-contract-version": "1.2.0",
+    "publish-contract-version": "1.1.0-preview",
+    "gateway-upgrade-version": "1.0.0-preview",
+    "usage-ingestion-version": "1.1.0"
+}

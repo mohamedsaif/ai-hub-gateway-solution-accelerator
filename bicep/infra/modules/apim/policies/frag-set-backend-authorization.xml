@@ -238,13 +238,15 @@
         <when condition="@(context.Variables.GetValueOrDefault<string>("targetPoolType", "") == "azure-openai")">
             <set-variable name="rewriteTemplate" value="@{
                 string requestedModel = (string)context.Variables["requestedModel"];
-                // APIM's context.Request.Url.Path returns the ORIGINAL request path,
-                // which includes the API path prefix (e.g. 'models/...' for Universal LLM API,
-                // 'openai/...' for Azure OpenAI API). Strip the API prefix before prepending
-                // the backend prefix so the rewritten URL doesn't double up the segment
-                // (e.g. 'openai/openai/deployments/.../chat/completions' or 'models/models/...').
+                // Derive from context.Request.OriginalUrl.Path (the IMMUTABLE original request
+                // path) rather than context.Request.Url.Path, because APIM's Url.Path DOES reflect
+                // prior <rewrite-uri> calls. When this fragment re-runs during an alias-fallback
+                // retry hop, reading the already-rewritten Url.Path and re-prepending the backend
+                // prefix stacks the segment (e.g. 'openai/openai/deployments/...' or
+                // 'models/models/chat/completions') -> backend 404. OriginalUrl.Path + API-prefix
+                // strip keeps the rewrite idempotent across re-runs.
                 string apiPath = (context.Api.Path ?? "").Trim('/');
-                string path = context.Request.Url.Path.TrimStart('/');
+                string path = context.Request.OriginalUrl.Path.TrimStart('/');
                 if (!string.IsNullOrEmpty(apiPath))
                 {
                     if (path.StartsWith(apiPath + "/", StringComparison.OrdinalIgnoreCase))
@@ -262,12 +264,14 @@
         </when>
         <when condition="@(context.Variables.GetValueOrDefault<string>("targetPoolType", "") == "ai-foundry")">
             <set-variable name="rewriteTemplate" value="@{
-                // APIM's context.Request.Url.Path returns the ORIGINAL request path,
-                // which includes the API path prefix (e.g. 'models/...' for Universal LLM API).
-                // Strip the API prefix before prepending the backend prefix so the rewritten URL
-                // doesn't double up the segment (e.g. 'models/models/chat/completions').
+                // Derive from context.Request.OriginalUrl.Path (the IMMUTABLE original request
+                // path) rather than context.Request.Url.Path, because APIM's Url.Path DOES reflect
+                // prior <rewrite-uri> calls. When this fragment re-runs during an alias-fallback
+                // retry hop, reading the already-rewritten Url.Path and re-prepending 'models/'
+                // stacks the segment (e.g. 'models/models/chat/completions') -> backend 404.
+                // OriginalUrl.Path + API-prefix strip keeps the rewrite idempotent across re-runs.
                 string apiPath = (context.Api.Path ?? "").Trim('/');
-                string path = context.Request.Url.Path.TrimStart('/');
+                string path = context.Request.OriginalUrl.Path.TrimStart('/');
                 if (!string.IsNullOrEmpty(apiPath))
                 {
                     if (path.StartsWith(apiPath + "/", StringComparison.OrdinalIgnoreCase))

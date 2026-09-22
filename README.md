@@ -12,13 +12,13 @@
 
 ## 🚀 Overview
 
-Citadel Governance Hub is an **enterprise-grade AI landing zone** that provides a centralized, governable, and observable control plane for AI consumption across teams and environments.
+Citadel Governance Hub is an **enterprise-grade AI landing zone** that provides a centralized, governable, and observable gateway plane for AI consumption across teams and environments.
 
 This repository is a **solution accelerator** that helps you deploy and operate the hub using:
 
-- Infrastructure-as-code (Bicep)
+- Infrastructure-as-code (Bicep, Terraform)
 - A unified AI gateway pattern (Azure API Management)
-- Usage ingestion components (Logic Apps + Azure Functions)
+- Usage ingestion components (Logic Apps + Event Hub + Cosmos DB)
 - Validation notebooks and operational guides
 
 ## 🏛️ Part of the AI Citadel Blueprint
@@ -32,13 +32,13 @@ The **AI Citadel Blueprint** is a unified, layered approach to AI security and c
 |-------|------|----------------|----------------|
 | 🔷 **Layer 1** | **Governance Hub** | Runtime enforcement — unified AI gateway, policy-as-code, identity validation, token rate limiting, content filtering, cost attribution | **👉 This Accelerator** ([aka.ms/ai-hub-gateway](https://aka.ms/ai-hub-gateway)) |
 | 🔶 **Layer 2** | **Agent Operations** | Agent runtime, observability & compliance — agent traces, AI evaluations, fleet operations, automated compliance checks | [Microsoft Foundry Agents & Control Plane](https://learn.microsoft.com/en-us/azure/ai-foundry/control-plane/overview) |
-| 🟢 **Layer 3** | **Agent Identity** | Agent identity & lifecycle governance and security — unique agent identities, blueprints, shadow agent detection, sponsorship model, access packages | [Governing Agent Identities with Agent 365](https://learn.microsoft.com/en-us/microsoft-agent-365/) |
-| 🛡️ **Layer 4** | **Security Fabric** | Unified protection — `Microsoft Defender` for AI threat intelligence, `Purview` for data governance, `Entra` for authentication and authorization | Microsoft Defender, Purview & Entra |
+| 🟢 **Layer 3** | **Agent Management** | Agent identity & lifecycle governance and security — unique agent identities, blueprints, shadow agent detection, sponsorship model, access packages | [Governing Agent Identities with Agent 365](https://learn.microsoft.com/en-us/microsoft-agent-365/) |
+| 🛡️ **Layer 4** | **Security Foundation** | Unified protection — `Microsoft Defender` for AI threat intelligence, `Purview` for data governance, `Entra` for authentication and authorization | Microsoft Defender, Purview & Entra |
 
 The layers are not isolated silos — they form an integrated architecture grounded in the principle of **separation of concerns with unified oversight**.
 
-**Layer 1: Governance Hub** (this accelerator) acts as the runtime gateway through a hub-and-spoke deployment where a centrally managed AI gateway (Azure API Management) enforces runtime policies, while spoke environments (layer 2: Agent Operations) give each business unit autonomous development within guardrails.
-Adding **Layer 3: Agent Identity** ensures that every agent has a unique, governable identity, while **Layer 4: Security Fabric** provides unified threat protection and data governance across the entire architecture.
+**Layer 1: Governance Hub** (this accelerator) acts as the runtime gateway through a hub-and-spoke deployment where a centrally managed AI gateway (Azure API Management) enforces runtime policies, while **Layer 2: Agent Operations** spoke environments give each business unit autonomous development within guardrails.
+Adding **Layer 3: Agent Management** ensures that every agent has a unique, governable identity, while **Layer 4: Security Foundation** provides unified threat protection and data governance across the entire architecture.
 
 > 📎 For the full Citadel Blueprint approach and guidance, visit: [aka.ms/foundry-citadel](https://aka.ms/foundry-citadel)
 
@@ -65,7 +65,10 @@ At a high level, the accelerator includes:
 - [validation](./validation): Jupyter notebooks for post-deployment validation and onboarding.
 - [guides](./guides): operational and architecture documentation.
 
-## 🏗️ Architecture Overview
+> **Terraform support** is now available in the [github.com/Azure/terraform-ai-gateway-landing-zone](https://github.com/Azure/terraform-ai-gateway-landing-zone) repo, with a parallel structure to the Bicep implementation.
+
+
+## �🏗️ Architecture Overview
 
 AI Citadel Governance Hub follows a **Central-Control-Plane** with decentralized **Agent-Execution-Plane** architecture** that integrates seamlessly with your existing `Azure Enterprise Landing Zone` network topology:
 
@@ -74,6 +77,8 @@ AI Citadel Governance Hub follows a **Central-Control-Plane** with decentralized
 ### Networking approach
 
 Detailed networking approach guidance for Citadel Governance Hub can be found in the [Network Approach Guide](./guides/network-approach.md).
+
+Initial deployments support optional [private-only Logic App website and SCM/Kudu access](./guides/network-approach.md#logic-app-private-connectivity). This is opt-in; defaults remain public access enabled with no Logic App private endpoint.
 
 Below is a high-level overview of the two supported deployment approaches:
 
@@ -160,6 +165,14 @@ Leverage **Citadel Access Contracts** to declare the required access to LLMs, to
 
 >NOTE: Recommendation is to create one contract per business-unit/use-case/environment to allow for precise governance policies and better observability in the hub.
 
+#### Publish Contracts (Preview)
+
+Leverage **Citadel Publish Contracts** to onboard and publish centrally protected AI assets — **Tools (MCP)** and **Agents (A2A)** — through the gateway with per-asset backends, resiliency, baseline policies, usage tracking, and optional API Center registration.
+
+[Publish contracts](bicep\infra\citadel-publish-contracts\README.md) are infrastructure-as-code declarations of the AI assets published on the gateway. See the [Publish Contract Guide](bicep\infra\citadel-publish-contracts\publish-contract-guide.md) for asset types, backend/auth options, and Foundry A2A publishing.
+
+>NOTE: Publish Contracts and Foundry-hosted A2A publishing are available in Preview (`publish-contract-version: 1.0.0-preview`). Publishing an asset does not grant access to it — governed access (products/subscriptions) is handled by Access Contracts.
+
 #### Existing agents
 
 Guidance to bring existing agents is through updating endpoint and credentials to access central LLMs, tools and agents through the **unified gateway** endpoint and credentials that are produced by the access contract provisioning for each agent.
@@ -188,12 +201,13 @@ For detailed guidance and technical implementation, see [AI App Landing Zone Rep
 
 ## 🔄 Governance Hub Operations - Contract-Driven Governance
 
-Day-to-day operation of the Citadel Governance Hub is **contract-driven**: every change to what the gateway serves and who can consume it is declared as version-controlled infrastructure-as-code (`.bicepparam` files) rather than manual portal configuration. Two complementary contract types govern the two sides of the gateway:
+Day-to-day operation of the Citadel Governance Hub is **contract-driven**: every change to what the gateway serves and who can consume it is declared as version-controlled infrastructure-as-code (`.bicepparam` files) rather than manual portal configuration. Three complementary contract types govern the gateway lifecycle:
 
 - **🔌 Backend Contracts** — govern the **supply side**: which LLM backends and models the gateway can route to.
+- **📤 Publish Contracts (Preview)** — govern which Tools (MCP) and Agents (A2A) are published through the gateway.
 - **📝 Access Contracts** — govern the **demand side**: which use cases and agents can consume those models, and under which policies.
 
-Together they create a clean separation of concerns: platform teams curate the available AI capacity once, while business units onboard use cases against that curated capacity without ever touching gateway internals.
+Together they create a clean separation of concerns: platform teams curate AI capacity and published assets, while business units onboard use cases against those governed assets without touching gateway internals.
 
 ```mermaid
 flowchart LR
@@ -201,6 +215,10 @@ flowchart LR
         B1[LLM Backends & Models]
         B2[Load Balancing & Failover]
         B3[Model Aliases]
+    end
+    subgraph Publishing["📤 Publish Contracts (Preview)"]
+        P1[Tools / MCP]
+        P2[Agents / A2A]
     end
     subgraph Gateway["🚪 AI Gateway (APIM)"]
         G1[Routing & Policy Engine]
@@ -210,7 +228,9 @@ flowchart LR
         A2[Per-use-case Policies]
         A3[Foundry / Key Vault Credentials]
     end
-    Supply --> Gateway --> Demand
+    Supply --> Gateway
+    Publishing --> Gateway
+    Gateway --> Demand
 ```
 
 ### 🔌 Backend Contracts — Onboard LLM backends and models
@@ -233,11 +253,11 @@ Declares the governed dependencies an agent or use case needs—LLMs, AI service
 
 > 🔗 **Learn More:** [AI Citadel Access Contracts Guide](./bicep/infra/citadel-access-contracts/README.md)
 
-### 📤 Publish Contracts (Upcoming)
+### 📤 Publish Contracts (Preview)
 
-Describes the tools and agents a spoke exposes **back** to the hub—publishing rules, ownership metadata, security posture, and discovery/cataloging in the AI Registry.
+Publishes Tools (MCP) and Agents (A2A) through the gateway with declarative endpoint and backend configuration, baseline policies, usage tracking, resiliency for supported backend types, and optional Azure API Center registration. Foundry-hosted agents can be exposed as A2A endpoints.
 
->NOTE: Publish contracts are upcoming and will be available in future releases.
+>NOTE: This capability is available in Preview (`publish-contract-version: 1.0.0-preview`). Its contract surface may change before general availability. See the [Publish Contract Guide](./bicep/infra/citadel-publish-contracts/publish-contract-guide.md).
 
 ### ✅ Why Contract-Driven Governance
 
@@ -308,14 +328,14 @@ Master AI Citadel Governance Hub implementation and operations with our detailed
 |-------|-------------|
 | [**🆕 Governance Hub Benefits**](./guides/governance-hub-benefits.md) | Detailed benefits and stakeholder value of adopting Citadel Governance Hub |
 | [**🆕 Citadel Sizing Guide**](./guides/citadel-sizing-guide.md) | Guidance on sizing the Citadel Governance Hub based on workloads and environments |
-| [**🆕 PTU Estimation Guide**](./guides/put-estimation-guide.md) | Azure OpenAI / Foundry LLM sizing guide for PTU vs Pay-as-you-Go capacity planning |
-
+| [**🆕 PTU Estimation Guide**](./guides/ptu-estimation-guide.md) | Azure OpenAI / Foundry LLM sizing guide for PTU vs Pay-as-you-Go capacity planning |
 ### 🏗️ **Landing zone deployment**
 
 | Guide | Description |
 |-------|-------------|
 | [**🆕 Quick Deployment Guide**](./guides/quick-deployment-guide.md) | Fast deployment for non-production environments |
 | [**🆕 Full Deployment Guide**](./guides/full-deployment-guide.md) | Comprehensive guide for dev, staging, and production |
+| [**🆕 Post-Deployment Guide**](./guides/post-deployment-guide.md) | Day-2 activities: onboard backends & use cases, enable Entra ID, activate Power BI, go multi-region, and upgrade the gateway |
 | [**🆕 Parameters Deployment Guide**](./guides/parameters-usage-guide.md) | Comprehensive Bicep parameter file usage |
 | [**🆕 Network Approach Guide**](./guides/network-approach.md) | Detailed networking approach for Citadel Governance Hub deployment |
 
@@ -325,13 +345,15 @@ Master AI Citadel Governance Hub implementation and operations with our detailed
 |-------|-------------|
 | [**🆕 LLM Backend Onboarding Guide**](./bicep/infra/llm-backend-onboarding/README.md) | Independent LLM backend routing deployment with load balancing and failover |
 | [**🆕 APIM Gateway Upgrade Guide**](./bicep/infra/apim-gateway-upgrade/README.md) | Update gateway policies, APIs, backends, diagnostics, and named values on an existing APIM instance without re-provisioning infrastructure |
+| [**🆕 Release Version Management**](./guides/release-version-management.md) | Versioning model of the accelerator, the `/version` runtime endpoint, and how to plan and implement migrations |
 
-### 🔧 **Use-case Onboarding**
+### 🔧 **Operations Contracts**
 
 | Guide | Description |
 |-------|-------------|
 | [**🆕 AI Citadel Access Contracts Guide**](./bicep/infra/citadel-access-contracts/README.md) | Guide on integrating new/existing AI apps & agents with AI Citadel Governance Hub |
 | [**🆕 AI Citadel Access Contracts Policies**](./bicep/infra/citadel-access-contracts/citadel-access-contracts-policy.md) | Deep dive into policy configurations for AI Citadel Access Contracts |
+| [**🆕 AI Citadel Publish Contracts Guide (Preview)**](./bicep/infra/citadel-publish-contracts/README.md) | Guide on publishing Tools (MCP) and Agents (A2A) through the gateway with optional Foundry A2A publishing |
 
 
 ### 🛡️ **Security & Compliance**
@@ -346,6 +368,7 @@ Master AI Citadel Governance Hub implementation and operations with our detailed
 
 | Guide | Description |
 |-------|-------------|
+| [**🆕 Platform Observability Guide**](./guides/platform-observability-guide.md) | Layered observability: APIM Analytics dashboard, Application Insights, Log Analytics LLM logs (with optional prompt/response auditing), and Cosmos DB + Power BI |
 | [**🆕 Power BI Dashboard**](./guides/power-bi-dashboard.md) | Usage analytics and cost allocation dashboards |
 
 ### 🏗️ **Architecture & configurations**
@@ -354,7 +377,53 @@ Master AI Citadel Governance Hub implementation and operations with our detailed
 |-------|-------------|
 | [**🆕 LLM Access Guide**](./guides/llm-access-guide.md) | Unified reference for the three LLM APIs and two access patterns, with a deep technical dive into model/backend routing |
 | [**🆕 LLM Backend Onboarding Guide**](./guides/LLM-Backend-Onboarding-Guide.md) | How to onboard LLM backends (Azure OpenAI, Foundry, external providers) with dynamic routing and load balancing |
-| [**🆕 Throttling Events Handling**](./guides/throttling-events-handling.md) | Monitor and handle throttling events per use case, deployment, and other dimensions |
+| [**🆕 Resiliency Guide**](./guides/resiliency-guide.md) | Circuit breaker, session affinity, automated failover, error handling, and alerting — what each does, how it works, and when to configure it |
+| [**🆕 Throttling & Critical Event Alerting**](./guides/throttling-events-handling.md) | Comprehensive, opt-in alerting on throttling, backend, authorization, content-safety, and PII events per use case, model, and backend |
+
+---
+
+## 🏷️ Release Version
+
+The accelerator tracks its release state in a single source-of-truth manifest at the repository
+root — [`release.json`](./release.json). Instead of one monolithic version, it uses **independent,
+component-scoped version tracks** so a change in one subsystem does not force re-versioning of
+unrelated ones:
+
+| Track | Meaning |
+|-------|---------|
+| `master-version` | Umbrella accelerator release version |
+| `routing-version` | LLM request routing logic (backend pools, model resolution, failover) |
+| `backend-contract-version` | Shape of the `llmBackendConfig` backend onboarding contract |
+| `access-contract-version` | Shape of the Citadel Access Contract (products & access policies) |
+| `gateway-upgrade-version` | In-place APIM Gateway Upgrade tooling (currently `-preview`) |
+| `usage-ingestion-version` | Usage ingestion pipeline (Logic App + Function) |
+
+The deployed manifest is exposed at runtime through the **Release Version API** in API Management:
+
+```bash
+curl https://<your-apim-gateway-host>/version
+```
+
+This `GET /version` endpoint returns `release.json`. It is created automatically by the **primary deployment** and created/updated
+by the **APIM Gateway Upgrade**, so the endpoint always reflects the currently deployed release.
+
+The same API also exposes `GET /version/backend-contract`, which returns the **active LLM backend
+routing contract** — a detailed projection of the effective onboarding configuration (APIM target,
+full `llmBackendConfig` with per-model metadata, circuit breaker and session affinity settings, model
+aliases, and derived pools), plus the `backend-contract-version`:
+
+```bash
+curl https://<your-apim-gateway-host>/version/backend-contract
+```
+
+> [!IMPORTANT]
+> The primary deployment (`main.bicep`) is used for the **initial implementation** only. After the
+> hub is live, the **[APIM Gateway Upgrade](./bicep/infra/apim-gateway-upgrade/README.md)** submodule
+> is the standard way to move the accelerator to new releases — applying the new version in place
+> without re-provisioning the APIM service or landing-zone infrastructure.
+
+> 📎 For version-track semantics, SemVer rules, and per-track migration guidance, see the
+> [**Release Version Management Guide**](./guides/release-version-management.md).
 
 ---
 

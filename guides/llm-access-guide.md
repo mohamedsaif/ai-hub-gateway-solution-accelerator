@@ -1,14 +1,26 @@
 # LLM Access Guide
 
-> **Unified reference for accessing LLMs through the Citadel Governance Hub.** This guide consolidates the three LLM API surfaces and the two access patterns into a single decision and implementation reference. It opens with an executive summary for architects and platform owners, then dives into the deep technical routing internals for engineers.
->
-> This guide **supersedes** the former `llm-routing-architecture.md` — all routing-architecture content lives here, reorganized around *how clients access models* rather than just *how requests are routed*.
+> **Unified reference for accessing LLMs through the Citadel Governance Hub.** This guide consolidates the three LLM API surfaces and the two access patterns into a single decision and implementation reference. 
+
+It opens with an executive summary for architects and platform owners, then dives into the deep technical routing internals for engineers.
 
 ---
 
 ## Executive Summary
 
-The Citadel Governance Hub exposes every LLM — Azure OpenAI, Azure AI Foundry, AWS Bedrock, Google Gemini, Anthropic, and other providers — through **Azure API Management (APIM)** acting as a single, governed front door. Instead of distributing master keys and letting each team call provider endpoints directly, all traffic flows through one control plane that enforces security, RBAC, cost attribution, load balancing, failover, and observability on every call.
+The Citadel Governance Hub exposes every LLM — Azure OpenAI (legacy), Microsoft Foundry Models, AWS Bedrock, Google Gemini, Anthropic Claude, and other providers — through **Azure API Management (APIM)** acting as a single, governed front door. 
+
+Instead of distributing master keys and letting each team call provider endpoints directly, all traffic flows through one control plane that enforces security, RBAC, cost attribution, load balancing, failover, and observability on every call.
+
+### Three LLM APIs
+
+Citadel Governance Hub offers **three distinct API surfaces** to accommodate different client needs and integration scenarios. Each API supports one or both of the two access patterns (OpenAI-Compatible and Provider-Native) described in the next section.
+
+| API | Path | Access pattern(s) | Primary use case | Validation notebook |
+|---|---|---|---|---|
+| **Azure OpenAI API** | `/openai/deployments/{deployment-id}/*` | OpenAI-Compatible (Azure OpenAI SDK shape) | **Legacy integration only** — existing code built on the Azure OpenAI SDK that pins the `/openai/deployments/...` URL shape. | [citadel-access-contracts-tests.ipynb](../validation/citadel-access-contracts-tests.ipynb) |
+| **Universal LLM API** | `/models/*` | OpenAI-Compatible (OpenAI v1 spec) | OpenAI-compatible access across many models/providers via a single stable path. | [citadel-universal-llm-api-all-models-tests.ipynb](../validation/citadel-universal-llm-api-all-models-tests.ipynb) |
+| **Unified AI API** ⭐ | `/unified-ai/*` | OpenAI-Compatible **and** Provider-Native | **Recommended** single wildcard endpoint that serves OpenAI-compatible *and* every provider-native pattern with dynamic routing. | [citadel-unified-ai-api-tests.ipynb](../validation/citadel-unified-ai-api-tests.ipynb) |
 
 ### Two access patterns
 
@@ -19,14 +31,6 @@ Every way a client can call a model collapses into one of two patterns:
 | **OpenAI-Compatible access** | Standard OpenAI request/response shapes (`/chat/completions`, `/embeddings`, `/responses`, `/v1/*`). Clients use stock OpenAI SDKs and the gateway routes transparently to whichever backend hosts the model. | **All three APIs** (Azure OpenAI API, Universal LLM API, Unified AI API) | The default for **new** integrations and any code that already speaks OpenAI. |
 | **LLM Provider-Native access** | The provider's own wire format — Bedrock Converse (`/model/{id}/converse`), Gemini (`/models/{id}:generateContent`), Anthropic Messages (`/v1/messages`). Clients use the provider's native SDK and get provider-specific features. | **Unified AI API only** | Workloads that need provider-exclusive capabilities or must run an existing provider-native SDK unchanged. |
 
-### Three LLM APIs
-
-| API | Path | Access pattern(s) | Primary use case | Validation notebook |
-|---|---|---|---|---|
-| **Azure OpenAI API** | `/openai/deployments/{deployment-id}/*` | OpenAI-Compatible (Azure OpenAI SDK shape) | **Legacy integration only** — existing code built on the Azure OpenAI SDK that pins the `/openai/deployments/...` URL shape. | [citadel-access-contracts-tests.ipynb](../validation/citadel-access-contracts-tests.ipynb) |
-| **Universal LLM API** | `/models/*` | OpenAI-Compatible (OpenAI v1 spec) | OpenAI-compatible access across many models/providers via a single stable path. | [citadel-universal-llm-api-all-models-tests.ipynb](../validation/citadel-universal-llm-api-all-models-tests.ipynb) |
-| **Unified AI API** ⭐ | `/unified-ai/*` | OpenAI-Compatible **and** Provider-Native | **Recommended** single wildcard endpoint that serves OpenAI-compatible *and* every provider-native pattern with dynamic routing. | [citadel-unified-ai-api-tests.ipynb](../validation/citadel-unified-ai-api-tests.ipynb) |
-
 ### Quick recommendations
 
 ```mermaid
@@ -34,7 +38,7 @@ flowchart TD
     A[New or existing LLM integration?] -->|New build| B{Need provider-native<br/>features or SDK?}
     A -->|Existing Azure OpenAI SDK code| L[Azure OpenAI API<br/>/openai/deployments/...]
     B -->|No — standard chat/embeddings/responses| C[Unified AI API<br/>OpenAI-compatible path<br/>/unified-ai/v1/*]
-    B -->|Yes — Bedrock / Gemini / Anthropic native| D[Unified AI API<br/>native path<br/>/unified-ai/bedrock|gemini|claude/*]
+    B -->|Yes — Bedrock / Gemini / Anthropic native| D["Unified AI API<br/>native path<br/>/unified-ai/bedrock|gemini|claude/*"]
     C -.OpenAI-compatible alt.-> E[Universal LLM API<br/>/models/*]
     L:::legacy
     classDef legacy fill:#ffe8e8,stroke:#cc0000;
@@ -62,7 +66,7 @@ Direct, key-per-team access to provider endpoints creates unpredictable cost, no
 | **RBAC / access contracts** | Per-product `allowedModels` and `allowedBackendPools` decide which use case can reach which model/pool. | [RBAC Integration](#rbac-integration), [Access Contracts notebook](../validation/citadel-access-contracts-tests.ipynb) |
 | **Cost attribution & usage metrics** | Token usage is emitted per product / model / backend / app for chargeback and FinOps. | [Usage Metrics Collection](#usage-metrics-collection), [Power BI Dashboard](./power-bi-dashboard.md) |
 | **Content safety & PII** | Prompt shields, harmful-content detection, and PII anonymization can be enforced in policy without app changes. | [PII Masking](./pii-masking-apim.md), [PII notebook](../validation/citadel-pii-processing-tests.ipynb) |
-| **Stateful-resource isolation** | Responses API `response_id` values are owned per subscription — cross-subscription access is blocked. | [Responses API ID Security](#step-15-responses-api-id-security-responses-id-security--responses-id-cache-store) |
+| **Stateful-resource isolation** | Responses API `response_id` values are owned per subscription and product — cross-owner access is blocked for 30 days. | [Responses API ID Security](#step-15-responses-api-id-security-responses-id-security--responses-id-cache-store) |
 | **Observability** | Central App Insights / Azure Monitor metrics plus optional `UAIG-*` debug headers expose every routing decision. | [Response Headers](#step-10-response-headers-set-response-headers), [Governance Hub Benefits](./governance-hub-benefits.md) |
 
 ---
@@ -87,11 +91,13 @@ Preserves the exact Azure OpenAI SDK URL shape, where the model is a `{deploymen
 
 ### Universal LLM API — `/models/*`
 
-Implements the **OpenAI v1 spec** (chat completions, embeddings, and the full Responses API trio) behind a single stable `/models` path. The model travels in the request body (or the `/deployments/{model}/` segment for AOAI passthrough), so a single client URL can reach many models across Azure OpenAI, Foundry, Bedrock-Mantle, and Gemini-OpenAI backends — as long as those backends expose an OpenAI-compatible surface.
+Implements the **OpenAI v1 spec** (chat completions, embeddings, and the full Responses API trio in addition to other operations outlined in OpenAI V1 spec) behind a single stable `/models` path. The model travels in the request body (or the `/deployments/{model}/` segment for AOAI passthrough), so a single client URL can reach many models across Azure OpenAI, Foundry, Bedrock-Mantle, and Gemini-OpenAI backends — as long as those backends expose an OpenAI-compatible surface.
 
 - **Access pattern:** OpenAI-Compatible (OpenAI v1)
 - **Compatible pool types:** `azure-openai`, `ai-foundry`, `aws-bedrock-mantle`, `gemini-openai` (native-only pools are excluded — see [`compatiblePoolTypes`](#step-3-target-pool-selection-set-target-backend-pool))
 - **Validation:** [citadel-universal-llm-api-all-models-tests.ipynb](../validation/citadel-universal-llm-api-all-models-tests.ipynb) discovers every gateway model via `GET /models/models` and runs chat / embeddings / Responses against each.
+
+> You can consider this layer if you want to maintain access to all OpenAI specific operations beyond the standard chat, embedding and responses patterns keeping in mind that the underlying backend must support those operations. For example, Azure OpenAI and Foundry support the full OpenAI v1 spec and are accessible through this API, but AWS Bedrock and Google Gemini only support a subset of OpenAI-compatible operations and are better accessed through the Unified AI API.
 
 ### Unified AI API — `/unified-ai/*` ⭐ Recommended
 
@@ -142,7 +148,7 @@ client = OpenAI(
 )
 
 response = client.chat.completions.create(
-    model="gpt-4o",  # Any model configured in the gateway
+    model="gpt-5.1",  # Any model configured in the gateway
     messages=[{"role": "user", "content": "Hello!"}],
 )
 print(response.choices[0].message.content)
@@ -155,7 +161,7 @@ curl -X POST "https://<apim-gateway>/unified-ai/v1/chat/completions" \
   -H "Content-Type: application/json" \
   -H "api-key: <subscription-key>" \
   -d '{
-    "model": "gpt-4o",
+    "model": "gpt-5.1",
     "messages": [{"role": "user", "content": "Hello!"}]
   }'
 ```
@@ -202,8 +208,46 @@ curl -X POST "https://<apim-gateway>/unified-ai/bedrock/model/us.anthropic.claud
 | Existing Azure OpenAI SDK code | **Azure OpenAI API** (`/openai/deployments/...`) | OpenAI-Compatible (legacy) | Preserves the exact URL shape with zero client change. |
 | Cross-provider fallback / model upgrades without client change | Any API + **model alias** | Either | Alias resolves to real models at runtime with priority/weighted strategy. |
 | Multi-team governance, per-use-case model restrictions | Any API + **access contract** | Either | `allowedModels` / `allowedBackendPools` enforced per product. |
+| Generate or edit images (gpt-image, FLUX, MAI) | **Unified AI API** (`/unified-ai/v1/images/*`) | OpenAI-Compatible | One OpenAI-style images endpoint; gateway builds each provider's path internally. See [Image Models](#image-models). |
 
 > **Rule of thumb:** default to the **Unified AI API**. Drop to the **Universal LLM API** when you want an OpenAI-v1-only surface, and to the **Azure OpenAI API** only for legacy compatibility.
+
+---
+
+## Image Models
+
+The Unified AI API also routes **image-generation and image-edit** models — Azure OpenAI **gpt-image**, Black Forest Labs **FLUX**, and Microsoft **MAI** — through a single OpenAI-style images surface. Because all three providers return OpenAI-shaped responses (`data[].b64_json`), the gateway needs **no response translation**: it only builds the correct provider path per backend type. Image traffic is isolated behind a dedicated `image` api-type and new pool types, so chat/embeddings/responses and the native provider surfaces are unaffected.
+
+### Client surface
+
+| Endpoint | Model location | Use for |
+|---|---|---|
+| `POST /unified-ai/v1/images/generations` | `model` in JSON body | Generation (any image model) |
+| `POST /unified-ai/openai/deployments/{model}/images/generations` | `{model}` in URL | Generation (Azure OpenAI SDK style) |
+| `POST /unified-ai/openai/deployments/{model}/images/edits` | `{model}` in URL | Edits (multipart) — **recommended** |
+| `POST /unified-ai/v1/images/edits` | `x-ai-model` **header** | Edits (multipart) without the deployments path |
+
+> Image **edits** are `multipart/form-data`, and the model can't be read from a multipart form field. Use the `/openai/deployments/{model}/images/edits` form (model in URL), or set the `x-ai-model` header on `POST /v1/images/edits`. A missing model returns `400 missing_model_parameter` with explicit guidance.
+
+### Provider routing
+
+| Provider | Backend type | Backend path the gateway builds | Model location |
+|---|---|---|---|
+| Azure OpenAI / Foundry gpt-image | `ai-foundry` / `azure-openai` | `/openai/v1/images/{generations\|edits}` | Body / URL |
+| Black Forest Labs FLUX | `azure-flux` | `/providers/blackforestlabs/v1/{modelPath}?api-version=preview` | Body (slug from `modelPath`) |
+| Microsoft MAI | `azure-mai` | `/mai/v1/images/{generations\|edits}` | Body |
+
+FLUX requires a one-time `modelPath` slug per model (e.g. `FLUX.2-pro` -> `flux-2-pro`) because the URL slug isn't derivable from the model name. Example generation request:
+
+```bash
+curl -X POST "https://<apim-gateway>/unified-ai/v1/images/generations" \
+  -H "Content-Type: application/json" \
+  -H "api-key: <subscription-key>" \
+  -d '{ "model": "FLUX.2-pro", "prompt": "A red fox in an autumn forest", "n": 1, "size": "1024x1024" }' \
+  | jq -r '.data[0].b64_json' | base64 --decode > out.png
+```
+
+RBAC, model aliases, cost attribution, and access contracts apply to image models exactly as they do to LLMs (`allowedModels` matches the image model name). Token-usage metrics are unchanged — image responses simply emit zero token usage. Full onboarding details and example `.bicepparam` config are in [LLM Backend Onboarding — Image Models](../bicep/infra/llm-backend-onboarding/README.md#image-models).
 
 ---
 
@@ -380,20 +424,22 @@ If none match, returns 400 `missing_model_parameter`.
 
 #### Step 1.5: Responses API ID Security (`responses-id-security` / `responses-id-cache-store`)
 
-The OpenAI **Responses API** (`POST /responses`, `GET /responses/{response_id}`, `GET /responses/{response_id}/input_items`, `DELETE /responses/{response_id}`) is stateful: a `response_id` returned by the backend can be re-used by the client to fetch or chain (`previous_response_id`) prior outputs. To prevent **cross-subscription access** to those server-side conversations, the gateway adds a single shared pair of fragments wired into all three API surfaces:
+The OpenAI **Responses API** (`POST /responses`, `GET /responses/{response_id}`, `GET /responses/{response_id}/input_items`, `DELETE /responses/{response_id}`) is stateful: a `response_id` returned by the backend can be re-used by the client to fetch or chain (`previous_response_id`) prior outputs. To prevent **cross-subscription and cross-product access** to those server-side conversations, the gateway adds a single shared pair of fragments wired into all three API surfaces:
 
 | Fragment | Stage | Responsibility |
 |---|---|---|
-| `responses-id-security` | inbound | Detects `/responses*` routes, resolves the `response_id` (URL path or `previous_response_id` body), looks up its owner in APIM cache, returns **403** on subscription mismatch and **404** when no cache entry exists for a GET/DELETE. For GET/DELETE it also **hydrates `requestedModel`** from the cache so model-based routing keeps working for those previously model-less operations. |
-| `responses-id-cache-store` | outbound | After a successful `POST /responses`, parses the response body, extracts `id`, and writes `key=response-id-{id}` → `value=<subscriptionId>\|<requestedModel>\|<userId>` to APIM internal cache (24h TTL). |
+| `responses-id-security` | inbound | Detects `/responses*` routes, resolves the `response_id` (URL path or `previous_response_id` body), looks up its owner in APIM cache, returns **403** when either the subscription or product differs and **404** when no cache entry exists for a GET/DELETE. For GET/DELETE it also **hydrates `requestedModel`** from the cache so model-based routing keeps working for those previously model-less operations. |
+| `responses-id-cache-store` | outbound | After a successful `POST /responses`, parses the response body, extracts `id`, and writes `key=response-id-{id}` → `value=<subscriptionId>\|<productId>\|<requestedModel>\|<userId>` to APIM internal cache for **30 days**. |
 
 Cache contract:
 
 ```
 key   = "response-id-" + response_id
-value = "<subscriptionId>|<requestedModel>|<userId>"   // userId from JWT 'azp' claim, falling back to subscription name
-ttl   = 86400 seconds
+value = "<subscriptionId>|<productId>|<requestedModel>|<userId>"
+ttl   = 2592000 seconds (30 days)
 ```
+
+`productId` is normalized to `NA` when APIM has no product context, such as a master subscription that can access APIs directly. Both the subscription ID and normalized product ID must match on subsequent requests. The 30-day mapping lifetime aligns with the default OpenAI Responses API retention period, so the gateway keeps ownership and routing metadata for the same default window as the stored response.
 
 Routing impact on `set-target-backend-pool`:
 
@@ -509,6 +555,7 @@ The `metadata-config` fragment defines the supported API types with their path p
 | `openai-v1` | `/openai/v1` | `/deployments` | `v1` | OpenAI v1 completions |
 | `geminiopenai` | `/v1beta/openai` | `/v1beta/openai` | `v1beta` | Google Gemini OpenAI-compatible |
 | `bedrock` | `/model` | `/model` | `bedrock-2024-04-15` | Amazon Bedrock Converse API |
+| `image` | `/v1/images` | _(none)_ | `v1` | Image generation/edit (gpt-image, FLUX, MAI) |
 
 Each API type can optionally define a `backend` property to override pool-based model routing and route to a specific backend directly (via `apiTypeOverrideBackend`).
 
@@ -574,16 +621,17 @@ Reconstructs the backend URI from known components based on the detected API typ
 
 | API Type | Backend Path Pattern |
 |----------|---------------------|
-| `openai` (default) | `{api-base-path}/deployments/{model}/chat/completions` |
+| `openai` (default) | `{api-base-path}/deployments/{model}/{operation}` (operation from path; defaults to `chat/completions`) |
 | `inference` | `{api-base-path}/chat/completions` |
 | `geminiopenai` | `{api-base-path}/chat/completions` |
 | `openai-v1` | `{api-base-path}/chat/completions` |
 | `responses` / `responses-v1` | `{api-base-path}` or `{api-base-path}/{response-id}` |
 | `bedrock` | `/model/{model}/converse` |
+| `image` | `backend-path-templates[poolType][images/generations\|images/edits]` with `{model}`/`{modelPath}` resolved (e.g. FLUX `/providers/blackforestlabs/v1/{modelPath}`) |
 
 Additional behavior:
-- Auto-injects `api-version` query parameter for `responses` and `inference` types.
-- Adds `model` field to request body if not present (for `openai` type).
+- Auto-injects `api-version` query parameter for `responses` and `inference` types; for `image` it injects `v1` (ai-foundry/azure-openai), `preview` (azure-flux), or none (azure-mai).
+- Adds `model` field to request body if not present (for `openai` type, **chat/completions only** — image bodies are never rewritten, preserving multipart edits).
 - Non-LLM requests (GET/DELETE) skip path building entirely.
 
 #### Step 10: Response Headers (set-response-headers)
@@ -701,6 +749,23 @@ Model: "gpt-4o" → Pool: "gpt-4o-backend-pool"
 - **Weight**: traffic distribution ratio among same-priority backends
 - **Failover**: automatic retry to next backend on 429/503 errors
 
+### Session affinity (sticky routing for stateful models)
+
+Pure load balancing assumes every request is independent. **Stateful** models — where a follow-up call must reach the same backend that holds the conversation/thread state (the OpenAI **Responses API** and **Assistants API**) — break under round-robin routing. Session affinity makes a pool sticky: APIM sets a session cookie on the first response, and when the client replays it, routes the request back to the **same** pool member.
+
+Enablement is **per-model**, so a single backend can mix stateful and stateless models:
+
+- Flag the stateful model with `sessionAwareModel: true` in its model object. Only that model's pool becomes sticky; stateless models on the same backend stay purely load-balanced.
+- `configureSessionAffinity` (default `true`) is a global kill-switch; `sessionAffinityDefaults` sets the cookie (`cookieName` default `ai-gateway-affinity`, `source` `Cookie`). A per-backend `sessionAffinity` object overrides the cookie for that backend's session-aware pools.
+
+```
+Model: "gpt-4.1" (sessionAwareModel: true) → Pool: "gpt41-...-backend-pool"
+                    ├── Backend 1 (Priority: 1, Weight: 100)   ← first request lands here,
+                    └── Backend 2 (Priority: 2, Weight: 50)       cookie pins the session to it
+```
+
+**Client requirement:** the client must persist and replay the affinity cookie. Reuse a **single HTTP client with a shared cookie jar (cookie container)** for all requests in one session so the `Set-Cookie` value is echoed back on every follow-up call; use separate cookie jars for separate sessions. Affinity is best-effort across gateway units and applies only to pooled (multi-backend) session-aware models — a tripped circuit breaker still fails over to another member. See [LLM Backend Onboarding — Session Affinity Configuration](../bicep/infra/llm-backend-onboarding/README.md#session-affinity-configuration).
+
 ### Pool isolation: `compatible-pool-types`
 
 Each api-type in `frag-metadata-config.xml` can declare a `compatible-pool-types` CSV. The pool resolver in `frag-set-target-backend-pool.xml` skips any pool whose `poolType` is not in that list **before** matching on model name. This lets the same model id appear in two pools — e.g. `claude-3-5-haiku-20241022` on both an `aws-bedrock` (native Converse) pool and an `aws-bedrock-mantle` (OpenAI-compat) pool — without suffix tricks: `/bedrock/...` only routes to `aws-bedrock`, `/v1/chat/completions` only routes to OpenAI-compat pools.
@@ -794,7 +859,8 @@ See [Power BI Dashboard](./power-bi-dashboard.md) for turning these metrics into
 | `resolve-model-alias` | Resolves a client-facing alias to an actual model (priority/weighted). No-op when not an alias. |
 | `get-available-models` | Returns filtered list of models for deployment discovery |
 | `ai-foundry-compatibility` | CORS configuration for AI Foundry |
-| `raise-throttling-events` | Sends throttling metrics on errors |
+| `raise-alert-events` | Emits critical-event alert metrics (throttling, backend, auth, content-safety, PII); opt-in per category |
+| `raise-throttling-events` | *(legacy)* Sends throttling-only metrics on errors; superseded by `raise-alert-events` |
 
 ### Universal LLM / Azure OpenAI Only
 
@@ -915,8 +981,8 @@ api-key: <subscription-key>
 | `400: alias_no_compatible_member` | Alias has no member compatible with the inbound surface | Add a compatible member or call via a compatible surface |
 | `403: backend_pool_access_forbidden` | RBAC blocks pool access | Update product's `allowedBackendPools` |
 | `403: PathNotAllowed` | Unified AI request path doesn't match any configured API type | Check `metadata-config` api-types base-paths |
-| `403: response_id_forbidden` | Cross-subscription Responses API access | Use the subscription that created the `response_id` |
-| `404: response_id_not_found` | Unknown / expired `response_id` | Re-create the response |
+| `403: response_id_forbidden` | Cross-subscription or cross-product Responses API access | Use the subscription and product pair that created the `response_id` |
+| `404: response_id_not_found` | Unknown or expired `response_id` mapping (30-day retention) | Re-create the response |
 | `401: product_required` | Request not associated with a product subscription | Provide a valid `api-key` header |
 | `429: Too Many Requests` | All backends throttling | Wait for retry-after or add capacity |
 | `503: Backend pool unavailable` | Circuit breaker open | Wait for trip duration to expire |

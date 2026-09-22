@@ -54,7 +54,7 @@ param existingLogAnalyticsSubscriptionId string = ''
 param apimApplicationInsightsDashboardName string = ''
 
 @description('Name of the Application Insights dashboard for Function/Logic App. Leave blank to use default naming conventions.')
-param funcAplicationInsightsDashboardName string = ''
+param funcApplicationInsightsDashboardName string = ''
 
 @description('Name of the Application Insights dashboard for Function/Logic App. Leave blank to use default naming conventions.')
 param foundryApplicationInsightsDashboardName string = ''
@@ -210,6 +210,9 @@ param keyVaultPrivateEndpointName string = ''
 @description('Azure Managed Redis private endpoint name. Leave blank to use default naming conventions.')
 param redisPrivateEndpointName string = ''
 
+@description('Logic App private endpoint name. Leave blank to use default naming conventions.')
+param logicAppPrivateEndpointName string = ''
+
 // Services network access configuration
 
 @description('Network type for API Management service. Applies only to Premium and Developer SKUs.')
@@ -221,6 +224,12 @@ param apimV2UsePrivateEndpoint bool = true
 
 @description('API Management service external network access. When false, APIM must have private endpoint.')
 param apimV2PublicNetworkAccess bool = true
+
+@description('Create a private endpoint for the Logic App. Existing VNets require existingPrivateDnsZones.logicApp or dnsZoneRG for privatelink.azurewebsites.net, with DNS links or forwarding configured.')
+param logicAppUsePrivateEndpoint bool = false
+
+@description('Allow public network access to the Logic App. When false, website and SCM access require a working private endpoint and private DNS; workflow publishing must run from a connected network.')
+param logicAppPublicNetworkAccess bool = true
 
 @description('Cosmos DB public network access.')
 @allowed([ 'Enabled', 'Disabled' ])
@@ -391,6 +400,10 @@ param redisSkuCapacity int = 2
 @description('Minimum TLS version for Redis connections.')
 param redisMinimumTlsVersion string = '1.2'
 
+@description('High availability / zone redundancy for Azure Managed Redis. Enabled (default) replicates data across availability zones. Set to Disabled if cluster creation intermittently fails with "CreateFailed" due to zonal capacity constraints in the selected region (reduces the availability SLA).')
+@allowed([ 'Enabled', 'Disabled' ])
+param redisHighAvailability string = 'Enabled'
+
 //
 // ACCELERATOR SPECIFIC PARAMETERS - Additional parameters for the solution (should not be modified without careful consideration)
 //
@@ -549,185 +562,6 @@ param enableUnifiedAiApi bool = true
 
 // Load abbreviations from JSON file
 var abbrs = loadJsonContent('./abbreviations.json')
-// Generate a unique token for resources
-var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
-
-// Transform aiFoundryModelsConfig to include the actual aiservice names based on aiserviceIndex
-var transformedAiFoundryModelsConfig = [for model in aiFoundryModelsConfig: union(model, {
-  aiservice: contains(model, 'aiserviceIndex') 
-    ? (!empty(aiFoundryInstances[model.aiserviceIndex].name) 
-        ? aiFoundryInstances[model.aiserviceIndex].name 
-        : 'aif-${resourceToken}-${model.aiserviceIndex}')
-    : ''
-})]
-
-// Group models by aiserviceIndex for backend configuration
-// Each model now includes full metadata: name, sku, capacity, modelFormat, modelVersion, retirementDate
-var modelsGroupedByInstance = [for (instance, i) in aiFoundryInstances: {
-  instanceIndex: i
-  models: filter(map(aiFoundryModelsConfig, model => contains(model, 'aiserviceIndex') && model.aiserviceIndex == i ? union({
-    name: model.name
-    sku: model.sku
-    capacity: model.capacity
-    modelFormat: model.publisher
-    modelVersion: model.version
-    retirementDate: model.?retirementDate ?? ''
-  }, !empty(model.?apiVersion) ? { apiVersion: model.apiVersion } : {},
-     !empty(model.?inferenceApiVersion) ? { inferenceApiVersion: model.inferenceApiVersion } : {},
-     contains(model, 'timeout') ? { timeout: model.timeout } : {}
-  ) : {}), m => !empty(m))
-}]
-
-/**
- * LLM Backend Configuration Array
- * 
- * Defines all LLM backends that APIM will route requests to. This enables:
- * - Multi-model support across different LLM providers
- * - Load balancing and failover for the same model across multiple backends
- * - Flexible authentication schemes per backend
- * 
- * Each backend object should have:
- * - backendId: Unique identifier (used in APIM backend resource name)
- * - backendType: 'ai-foundry' | 'azure-openai' | 'external'
- * - endpoint: Base URL of the LLM service
- * - authScheme: 'managedIdentity' | 'apiKey' | 'token'
- * - supportedModels: Array of model objects with:
- *     - name: Model name (required)
- *     - sku: SKU name for deployment (default: 'Standard')
- *     - capacity: Capacity/TPM quota (default: 100)
- *     - modelFormat: Model format identifier, e.g., 'OpenAI', 'DeepSeek', 'Microsoft' (default: 'OpenAI')
- *     - modelVersion: Version of the model (default: '1')
- *     - retirementDate: (Optional) Retirement date for the model in YYYY-MM-DD format
- *     - apiVersion: (Optional) API version for OpenAI-type requests (default: '2024-02-15-preview')
- *     - timeout: (Optional) Request timeout in seconds (default: 120)
- *     - inferenceApiVersion: (Optional) API version for inference-type requests
- * - priority: (Optional) 1-5, default 1 (lower = higher priority)
- * - weight: (Optional) 1-1000, default 100 (higher = more traffic)
- * 
- * This configuration is now dynamically generated from aiFoundryInstances and aiFoundryModelsConfig as part of the deployment.
- * If you wish to onboard existing LLM backends, you can extend the llmBackendConfig variable with additional backend objects.
-
- var llmBackendConfig array = [
-  // AI Foundry Instance 0 - Location: location (parameter)
-  // Models: gpt-4o-mini, gpt-4o, gpt-4.1, DeepSeek-R1, Phi-4
-  {
-    backendId: 'aif-REPLACE-0'
-    backendType: 'ai-foundry'
-    endpoint: 'https://aif-REPLACE-0.services.ai.azure.com/models'
-    authScheme: 'managedIdentity'
-    supportedModels: [
-      { name: 'gpt-4o-mini', sku: 'GlobalStandard', capacity: 100, modelFormat: 'OpenAI', modelVersion: '2024-07-18', retirementDate: '2026-09-30' }
-      { name: 'gpt-4o', sku: 'GlobalStandard', capacity: 100, modelFormat: 'OpenAI', modelVersion: '2024-11-20', retirementDate: '2026-09-30' }
-      { name: 'gpt-4.1', sku: 'GlobalStandard', capacity: 100, modelFormat: 'OpenAI', modelVersion: '2025-04-14', retirementDate: '2026-10-14', apiVersion: '2025-04-01-preview', timeout: 180 }
-      { name: 'DeepSeek-R1', sku: 'GlobalStandard', capacity: 1, modelFormat: 'DeepSeek', modelVersion: '1', retirementDate: '2099-12-30', inferenceApiVersion: '2024-05-01-preview' }
-      { name: 'Phi-4', sku: 'GlobalStandard', capacity: 1, modelFormat: 'Microsoft', modelVersion: '3', retirementDate: '2099-12-30', inferenceApiVersion: '2024-05-01-preview' }
-    ]
-    priority: 1
-    weight: 100
-  }
-  // AI Foundry Instance 1 - Location: eastus2
-  // Models: gpt-5, DeepSeek-R1
-  {
-    backendId: 'aif-REPLACE-1'
-    backendType: 'ai-foundry'
-    endpoint: 'https://aif-REPLACE-1.services.ai.azure.com/models'
-    authScheme: 'managedIdentity'
-    supportedModels: [
-      { name: 'gpt-5', sku: 'GlobalStandard', capacity: 100, modelFormat: 'OpenAI', modelVersion: '2025-08-07', retirementDate: '2027-02-05' }
-      { name: 'DeepSeek-R1', sku: 'GlobalStandard', capacity: 1, modelFormat: 'DeepSeek', modelVersion: '1', retirementDate: '2099-12-30', inferenceApiVersion: '2024-05-01-preview' }
-    ]
-    priority: 1
-    weight: 100
-  }
-]
-
- */
-
-// Dynamically generate LLM backend configuration from AI Foundry instances and models
-var llmBackendConfig = [for (instance, i) in aiFoundryInstances: {
-  backendId: !empty(instance.name) ? '${instance.name}-${i}' : 'aif-${resourceToken}-${i}'
-  backendType: 'ai-foundry'
-  endpoint: 'https://${!empty(instance.name) ? instance.name : 'aif-${resourceToken}-${i}'}.cognitiveservices.azure.com/'
-  authScheme: 'managedIdentity'
-  supportedModels: modelsGroupedByInstance[i].models
-  priority: 1
-  weight: 100
-}]
-
-var primaryFoundryName = !empty(aiFoundryInstances[0].name) ? aiFoundryInstances[0].name : 'aif-${resourceToken}-0'
-// Primary Foundry endpoint - serves APIM AI Gateway as both:
-//   1. Backend URL for `content-safety-backend` (Content Safety API)
-//   2. Named-value `piiServiceUrl` (Language Service / PII detection API)
-// Both APIs are exposed on the AI Services account base endpoint.
-var primaryFoundryEndpoint = 'https://${primaryFoundryName}.cognitiveservices.azure.com/'
-var primaryFoundryEmbeddingsBackendUrl = '${primaryFoundryEndpoint}openai/deployments/${primaryFoundryEmbeddingModelName}/embeddings'
-
-var openAiPrivateDnsZoneName = 'privatelink.openai.azure.com'
-var keyVaultPrivateDnsZoneName = 'privatelink.vaultcore.azure.net'
-var monitorPrivateDnsZoneName = 'privatelink.monitor.azure.com'
-var eventHubPrivateDnsZoneName = 'privatelink.servicebus.windows.net'
-var cosmosDbPrivateDnsZoneName = 'privatelink.documents.azure.com'
-var storageBlobPrivateDnsZoneName = 'privatelink.blob.core.windows.net'
-var storageFilePrivateDnsZoneName = 'privatelink.file.core.windows.net'
-var storageTablePrivateDnsZoneName = 'privatelink.table.core.windows.net'
-var storageQueuePrivateDnsZoneName = 'privatelink.queue.core.windows.net'
-var aiCogntiveServicesDnsZoneName = 'privatelink.cognitiveservices.azure.com'
-var apimV2SkuDnsZoneName = 'privatelink.azure-api.net'
-var aiServicesDnsZoneName = 'privatelink.services.ai.azure.com'
-var redisPrivateDnsZoneName = 'privatelink.redis.azure.net'
-
-// AI Foundry requires 3 DNS zones for full private endpoint support
-var aiFoundryDnsZoneNames = [
-  aiCogntiveServicesDnsZoneName     // privatelink.cognitiveservices.azure.com
-  openAiPrivateDnsZoneName          // privatelink.openai.azure.com
-  aiServicesDnsZoneName             // privatelink.services.ai.azure.com
-]
-
-// Extract existing DNS zone resource IDs from the parameter (for BYO network scenarios)
-// These are used when useExistingVnet is true and existingPrivateDnsZones is provided
-var existingKeyVaultDnsZoneId = existingPrivateDnsZones.?keyVault ?? ''
-var existingMonitorDnsZoneId = existingPrivateDnsZones.?monitor ?? ''
-var existingEventHubDnsZoneId = existingPrivateDnsZones.?eventHub ?? ''
-var existingCosmosDbDnsZoneId = existingPrivateDnsZones.?cosmosDb ?? ''
-var existingStorageBlobDnsZoneId = existingPrivateDnsZones.?storageBlob ?? ''
-var existingStorageFileDnsZoneId = existingPrivateDnsZones.?storageFile ?? ''
-var existingStorageTableDnsZoneId = existingPrivateDnsZones.?storageTable ?? ''
-var existingStorageQueueDnsZoneId = existingPrivateDnsZones.?storageQueue ?? ''
-var existingCognitiveServicesDnsZoneId = existingPrivateDnsZones.?cognitiveServices ?? ''
-var existingApimGatewayDnsZoneId = existingPrivateDnsZones.?apimGateway ?? ''
-var existingAiServicesDnsZoneId = existingPrivateDnsZones.?aiServices ?? ''
-var existingOpenAiDnsZoneId = existingPrivateDnsZones.?openai ?? ''
-var existingRedisDnsZoneId = existingPrivateDnsZones.?redis ?? ''
-
-// Existing DNS zone resource IDs for AI Foundry (for BYO network scenarios)
-var aiFoundryDnsZoneResourceIds = union(
-  !empty(existingCognitiveServicesDnsZoneId) ? [existingCognitiveServicesDnsZoneId] : [],
-  !empty(existingOpenAiDnsZoneId) ? [existingOpenAiDnsZoneId] : [],
-  !empty(existingAiServicesDnsZoneId) ? [existingAiServicesDnsZoneId] : []
-)
-
-// Determine if we're using explicit DNS zone resource IDs (new approach) vs legacy RG/Subscription lookup
-#disable-next-line no-unused-vars
-var useExplicitDnsZoneIds = !empty(existingCosmosDbDnsZoneId) || !empty(existingEventHubDnsZoneId) || !empty(existingStorageBlobDnsZoneId)
-
-// Base DNS zones (always included)
-var baseDnsZoneNames = [
-  openAiPrivateDnsZoneName
-  aiCogntiveServicesDnsZoneName
-  keyVaultPrivateDnsZoneName
-  eventHubPrivateDnsZoneName 
-  cosmosDbPrivateDnsZoneName
-  storageBlobPrivateDnsZoneName
-  storageFilePrivateDnsZoneName
-  storageTablePrivateDnsZoneName
-  storageQueuePrivateDnsZoneName
-  apimV2SkuDnsZoneName
-  aiServicesDnsZoneName
-  redisPrivateDnsZoneName
-]
-
-// Only include Azure Monitor DNS zone when Private Link Scope is enabled
-var privateDnsZoneNames = useAzureMonitorPrivateLinkScope ? concat(baseDnsZoneNames, [monitorPrivateDnsZoneName]) : baseDnsZoneNames
 
 // Organize resources in a resource group
 resource resourceGroup 'Microsoft.Resources/resourceGroups@2021-04-01' = {
@@ -736,454 +570,125 @@ resource resourceGroup 'Microsoft.Resources/resourceGroups@2021-04-01' = {
   tags: tags
 }
 
-module dnsDeployment './modules/networking/dns.bicep' = [for privateDnsZoneName in privateDnsZoneNames: if(!useExistingVnet) {
-  name: 'dns-deployment-${privateDnsZoneName}'
+module resources './resources.bicep' = {
+  name: 'resources-${uniqueString(resourceGroup.name, deployment().name)}'
   scope: resourceGroup
   params: {
-    name: privateDnsZoneName
-    tags: tags
-  }
-}]
-
-module vnet './modules/networking/vnet.bicep' = if(!useExistingVnet) {
-  name: 'vnet'
-  scope: resourceGroup
-  params: {
-    name: !empty(vnetName) ? vnetName : 'vnet-${resourceToken}'
-    apimSubnetName: !empty(apimSubnetName) ? apimSubnetName : 'snet-apim'
-    apimNsgName: !empty(apimNsgName) ? apimNsgName : 'nsg-apim-${resourceToken}'
-    privateEndpointSubnetName: !empty(privateEndpointSubnetName) ? privateEndpointSubnetName : 'snet-private-endpoint'
-    privateEndpointNsgName: !empty(privateEndpointNsgName) ? privateEndpointNsgName : 'nsg-pe-${resourceToken}'
-    functionAppSubnetName: !empty(functionAppSubnetName) ? functionAppSubnetName : 'snet-functionapp'
-    functionAppNsgName: !empty(functionAppNsgName) ? functionAppNsgName : 'nsg-functionapp-${resourceToken}'
-    enableAgentSubnet: foundryNetworkInjectionEnabled
-    agentSubnetName: !empty(agentSubnetName) ? agentSubnetName : 'snet-agents'
-    agentSubnetNsgName: !empty(agentSubnetNsgName) ? agentSubnetNsgName : 'nsg-agents-${resourceToken}'
-    agentSubnetAddressPrefix: agentSubnetPrefix
-    vnetAddressPrefix: vnetAddressPrefix
-    apimSubnetAddressPrefix: apimSubnetPrefix
-    isAPIMV2SKU: apimSku == 'StandardV2' || apimSku == 'PremiumV2'
-    privateEndpointSubnetAddressPrefix: privateEndpointSubnetPrefix
-    functionAppSubnetAddressPrefix: functionAppSubnetPrefix
+    environmentName: environmentName
     location: location
+    apicLocation: apicLocation
     tags: tags
-    privateDnsZoneNames: privateDnsZoneNames
-    apimRouteTableName: !empty(apimRouteTableName) ? apimRouteTableName : 'rt-apim-${resourceToken}'
-  }
-  dependsOn: [
-    dnsDeployment
-  ]
-}
-
-module vnetExisting './modules/networking/vnet-existing.bicep' = if(useExistingVnet) {
-  name: 'vnetExisting'
-  scope: resourceGroup
-  params: {
-    name: vnetName
-    apimSubnetName: !empty(apimSubnetName) ? apimSubnetName : 'snet-apim'
-    privateEndpointSubnetName: !empty(privateEndpointSubnetName) ? privateEndpointSubnetName : 'snet-private-endpoint'
-    functionAppSubnetName: !empty(functionAppSubnetName) ? functionAppSubnetName : 'snet-functionapp'
-    agentSubnetName: foundryNetworkInjectionEnabled ? agentSubnetName : ''
-    vnetRG: existingVnetRG
-  }
-  dependsOn: [
-    dnsDeployment
-  ]
-}
-
-module apimManagedIdentity './modules/security/managed-identity-apim.bicep' = {
-  name: 'apim-managed-identity'
-  scope: resourceGroup
-  params: {
-    name: !empty(apimIdentityName) ? apimIdentityName : '${abbrs.managedIdentityUserAssignedIdentities}apim-${resourceToken}'
-    location: location
-    tags: tags
-  }
-}
-
-// The usage managed identity is created early (no dependency on Cosmos DB) so its principal has
-// time to replicate in AAD before the Cosmos SQL role assignment runs (see usageCosmosSqlRole).
-module usageManagedIdentity './modules/security/managed-identity-usage.bicep' = {
-  name: 'logicapp-usage-managed-identity'
-  scope: resourceGroup
-  params: {
-    name: !empty(usageLogicAppIdentityName) ? usageLogicAppIdentityName : '${abbrs.managedIdentityUserAssignedIdentities}logicapp-${resourceToken}'
-    location: location
-    tags: tags
-  }
-}
-
-module monitoring './modules/monitor/monitoring.bicep' = {
-  name: 'monitoring'
-  scope: resourceGroup
-  params: {
-    location: location
-    tags: tags
-    logAnalyticsName: !empty(logAnalyticsName) ? logAnalyticsName : '${abbrs.operationalInsightsWorkspaces}${resourceToken}'
+    apimIdentityName: apimIdentityName
+    usageLogicAppIdentityName: usageLogicAppIdentityName
+    apimServiceName: apimServiceName
+    logAnalyticsName: logAnalyticsName
     useExistingLogAnalytics: useExistingLogAnalytics
     existingLogAnalyticsName: existingLogAnalyticsName
     existingLogAnalyticsRG: existingLogAnalyticsRG
-    existingLogAnalyticsSubscriptionId: !empty(existingLogAnalyticsSubscriptionId) ? existingLogAnalyticsSubscriptionId : subscription().subscriptionId
-    apimApplicationInsightsName: !empty(apimApplicationInsightsName) ? apimApplicationInsightsName : '${abbrs.insightsComponents}apim-${resourceToken}'
-    apimApplicationInsightsDashboardName: !empty(apimApplicationInsightsDashboardName) ? apimApplicationInsightsDashboardName : '${abbrs.portalDashboards}apim-${resourceToken}'
-    functionApplicationInsightsName: !empty(funcApplicationInsightsName) ? funcApplicationInsightsName : '${abbrs.insightsComponents}func-${resourceToken}'
-    functionApplicationInsightsDashboardName: !empty(funcAplicationInsightsDashboardName) ? funcAplicationInsightsDashboardName : '${abbrs.portalDashboards}func-${resourceToken}'
-    foundryApplicationInsightsName: !empty(foundryApplicationInsightsName) ? foundryApplicationInsightsName : '${abbrs.insightsComponents}aif-${resourceToken}'
-    foundryApplicationInsightsDashboardName: !empty(foundryApplicationInsightsDashboardName) ? foundryApplicationInsightsDashboardName : '${abbrs.portalDashboards}aif-${resourceToken}'
-    vNetName: useExistingVnet ? vnetExisting.outputs.vnetName : vnet.outputs.vnetName
-    vNetRG: useExistingVnet ? vnetExisting.outputs.vnetRG : vnet.outputs.vnetRG
-    privateEndpointSubnetName: useExistingVnet ? vnetExisting.outputs.privateEndpointSubnetName : vnet.outputs.privateEndpointSubnetName
-    applicationInsightsDnsZoneName: monitorPrivateDnsZoneName
-    createDashboard: createAppInsightsDashboards
-    dnsZoneRG: !useExistingVnet ? resourceGroup.name : dnsZoneRG
-    dnsSubscriptionId: !empty(dnsSubscriptionId) ? dnsSubscriptionId : subscription().subscriptionId
-    dnsZoneResourceId: existingMonitorDnsZoneId
-    usePrivateLinkScope: useAzureMonitorPrivateLinkScope
-  }
-}
-
-module keyVault './modules/keyvault/keyvault.bicep' = {
-  name: 'key-vault'
-  scope: resourceGroup
-  params: {
-    keyVaultName: !empty(keyVaultName) ? keyVaultName : '${abbrs.keyVaultVaults}${resourceToken}'
-    location: location
-    tags: tags
-    skuName: keyVaultSkuName
-    publicNetworkAccess: keyVaultExternalNetworkAccess
-    vNetName: useExistingVnet ? vnetExisting.outputs.vnetName : vnet.outputs.vnetName
-    privateEndpointSubnetName: useExistingVnet ? vnetExisting.outputs.privateEndpointSubnetName : vnet.outputs.privateEndpointSubnetName
-    vNetRG: useExistingVnet ? vnetExisting.outputs.vnetRG : vnet.outputs.vnetRG
-    keyVaultPrivateEndpointName: !empty(keyVaultPrivateEndpointName) ? keyVaultPrivateEndpointName : '${abbrs.keyVaultVaults}pe-${resourceToken}'
-    keyVaultDnsZoneName: keyVaultPrivateDnsZoneName
-    dnsZoneRG: !useExistingVnet ? resourceGroup.name : dnsZoneRG
-    dnsSubscriptionId: !empty(dnsSubscriptionId) ? dnsSubscriptionId : subscription().subscriptionId
-    dnsZoneResourceId: existingKeyVaultDnsZoneId
-    apimPrincipalId: apimManagedIdentity.outputs.managedIdentityPrincipalId
-  }
-}
-
-// AI Foundry deployment.
-// The first element of `aiFoundryInstances` is the **primary** Foundry resource. Its endpoint is
-// reused by APIM as the backend for content safety and as the named-value URL for PII / language
-// processing (both APIs are exposed on the unified AI Services endpoint of the account).
-// Additional entries in `aiFoundryInstances` simply provide more regional Foundry resources that
-// can host LLM model deployments declared in `aiFoundryModelsConfig`.
-module foundry 'modules/foundry/foundry.bicep' = {
-  name: 'ai-foundry'
-  scope: resourceGroup
-  params: {
-    aiServicesConfig: aiFoundryInstances
-    modelsConfig: transformedAiFoundryModelsConfig
-    lawId: monitoring.outputs.logAnalyticsWorkspaceId
-    apimPrincipalId: apimManagedIdentity.outputs.managedIdentityPrincipalId
-    foundryProjectName: 'citadel-governance-project'
-    appInsightsInstrumentationKey: monitoring.outputs.foundryApplicationInsightsInstrumentationKey
-    appInsightsId: monitoring.outputs.foundryApplicationInsightsId
-    publicNetworkAccess: aiFoundryExternalNetworkAccess
-    disableKeyAuth: false
-    resourceToken: resourceToken
-    tags: tags
-    // Networking parameters for private endpoints
-    vNetName: useExistingVnet ? vnetExisting.outputs.vnetName : vnet.outputs.vnetName
-    vNetLocation: useExistingVnet ? vnetExisting.outputs.location : vnet.outputs.location
-    vNetRG: useExistingVnet ? vnetExisting.outputs.vnetRG : vnet.outputs.vnetRG
-    privateEndpointSubnetName: useExistingVnet ? vnetExisting.outputs.privateEndpointSubnetName : vnet.outputs.privateEndpointSubnetName
-    aiFoundryPrivateEndpointBaseName: !empty(aiFoundryPrivateEndpointName) ? aiFoundryPrivateEndpointName : '${abbrs.cognitiveServicesAccounts}foundry-pe-${resourceToken}'
-    aiServicesDnsZoneNames: aiFoundryDnsZoneNames
-    dnsZoneRG: !useExistingVnet ? resourceGroup.name : dnsZoneRG
-    dnsSubscriptionId: !empty(dnsSubscriptionId) ? dnsSubscriptionId : subscription().subscriptionId
-    dnsZoneResourceIds: aiFoundryDnsZoneResourceIds
-    networkInjectionEnabled: foundryNetworkInjectionEnabled
-    agentSubnetName: foundryNetworkInjectionEnabled ? (useExistingVnet ? vnetExisting.outputs.agentSubnetName : vnet.outputs.agentSubnetName) : ''
-    // Key Vault connection parameters
-    keyVaultId: keyVault.outputs.keyVaultId
-    keyVaultUri: keyVault.outputs.keyVaultUri
-  }
-}
-
-module eventHub './modules/event-hub/event-hub.bicep' = {
-  name: 'event-hub'
-  scope: resourceGroup
-  params: {
-    name: !empty(eventHubNamespaceName) ? eventHubNamespaceName : '${abbrs.eventHubNamespaces}${resourceToken}'
-    location: location
-    tags: tags
-    eventHubPrivateEndpointName: !empty(eventHubPrivateEndpointName) ? eventHubPrivateEndpointName : '${abbrs.eventHubNamespaces}pe-${resourceToken}'
-    vNetName: useExistingVnet ? vnetExisting.outputs.vnetName : vnet.outputs.vnetName
-    privateEndpointSubnetName: useExistingVnet ? vnetExisting.outputs.privateEndpointSubnetName : vnet.outputs.privateEndpointSubnetName
-    eventHubDnsZoneName: eventHubPrivateDnsZoneName
-    publicNetworkAccess: eventHubNetworkAccess
-    vNetRG: useExistingVnet ? vnetExisting.outputs.vnetRG : vnet.outputs.vnetRG
-    dnsZoneRG: !useExistingVnet ? resourceGroup.name : dnsZoneRG
-    dnsSubscriptionId: !empty(dnsSubscriptionId) ? dnsSubscriptionId : subscription().subscriptionId
-    dnsZoneResourceId: existingEventHubDnsZoneId
-    capacity: eventHubCapacityUnits
-  }
-}
-
-module managedRedis './modules/redis/redis.bicep' = if (enableManagedRedis) {
-  name: 'managed-redis'
-  scope: resourceGroup
-  params: {
-    name: !empty(redisCacheName) ? redisCacheName : '${abbrs.cacheRedis}${resourceToken}'
-    location: location
-    tags: tags
-    skuName: redisSkuName
-    skuCapacity: redisSkuCapacity
-    publicNetworkAccess: redisPublicNetworkAccess
-    minimumTlsVersion: redisMinimumTlsVersion
-    usePrivateEndpoint: true
-    redisPrivateEndpointName: !empty(redisPrivateEndpointName) ? redisPrivateEndpointName : '${abbrs.cacheRedis}pe-${resourceToken}'
-    vNetName: useExistingVnet ? vnetExisting.outputs.vnetName : vnet.outputs.vnetName
-    privateEndpointSubnetName: useExistingVnet ? vnetExisting.outputs.privateEndpointSubnetName : vnet.outputs.privateEndpointSubnetName
-    vNetRG: useExistingVnet ? vnetExisting.outputs.vnetRG : vnet.outputs.vnetRG
-    redisDnsZoneName: redisPrivateDnsZoneName
-    dnsZoneRG: !useExistingVnet ? resourceGroup.name : dnsZoneRG
-    dnsSubscriptionId: !empty(dnsSubscriptionId) ? dnsSubscriptionId : subscription().subscriptionId
-    dnsZoneResourceId: existingRedisDnsZoneId
-  }
-}
-
-// ============================================================================
-// ENTRA ID CONFIGURATION
-// ============================================================================
-// Entra ID App Registration is created independently by the entra-id-setup script
-// (bicep/infra/entra-id-setup/setup.ps1) which stores values as azd environment
-// variables. These values flow through main.bicepparam -> parameters here.
-// For bring-your-own app registrations, set the values directly via azd env set.
-// See: bicep/infra/entra-id-setup/README.md
-
-var resolvedEntraTenantId = !empty(entraTenantId) ? entraTenantId : subscription().tenantId
-var resolvedEntraClientId = !empty(entraClientId) ? entraClientId : 'not-configured'
-var resolvedEntraAudience = !empty(entraAudience) ? entraAudience : (entraAuth ? 'api://${resolvedEntraClientId}' : 'https://cognitiveservices.azure.com/.default')
-
-// Store client secret in Key Vault when provided via parameter (for BYOA scenarios
-// where the secret isn't already in Key Vault from the entra-id-setup script)
-module entraClientSecretKv './modules/keyvault/keyvault-secret.bicep' = if (entraAuth && !empty(entraClientSecret)) {
-  name: 'entra-client-secret-kv'
-  scope: resourceGroup
-  params: {
-    keyVaultName: keyVault.outputs.keyVaultName
-    secretName: 'ENTRA-APP-CLIENT-SECRET'
-    secretValue: entraClientSecret
-  }
-}
-
-module apim './modules/apim/apim.bicep' = {
-  name: 'apim'
-  scope: resourceGroup
-  params: {
-    name: !empty(apimServiceName) ? apimServiceName : '${abbrs.apiManagementService}${resourceToken}'
-    location: location
-    tags: tags
-    applicationInsightsName: monitoring.outputs.apimApplicationInsightsName
-    managedIdentityName: apimManagedIdentity.outputs.managedIdentityName
-    keyVaultName: keyVault.outputs.keyVaultName
-    entraAuth: entraAuth
-    clientAppId: resolvedEntraClientId
-    tenantId: resolvedEntraTenantId
-    audience: resolvedEntraAudience
-    eventHubName: eventHub.outputs.eventHubName
-    eventHubEndpoint: eventHub.outputs.eventHubEndpoint
-    eventHubPIIName: eventHub.outputs.eventHubPIIName
-    eventHubPIIEndpoint: eventHub.outputs.eventHubEndpoint
-    apimSubnetId: useExistingVnet ? vnetExisting.outputs.apimSubnetId : vnet.outputs.apimSubnetId
-    aiLanguageServiceUrl: primaryFoundryEndpoint
-    contentSafetyServiceUrl: primaryFoundryEndpoint
+    existingLogAnalyticsSubscriptionId: existingLogAnalyticsSubscriptionId
+    apimApplicationInsightsDashboardName: apimApplicationInsightsDashboardName
+    funcApplicationInsightsDashboardName: funcApplicationInsightsDashboardName
+    foundryApplicationInsightsDashboardName: foundryApplicationInsightsDashboardName
+    apimApplicationInsightsName: apimApplicationInsightsName
+    funcApplicationInsightsName: funcApplicationInsightsName
+    foundryApplicationInsightsName: foundryApplicationInsightsName
+    eventHubNamespaceName: eventHubNamespaceName
+    cosmosDbAccountName: cosmosDbAccountName
+    usageProcessingLogicAppName: usageProcessingLogicAppName
+    storageAccountName: storageAccountName
+    apicServiceName: apicServiceName
+    aiFoundryResourceName: aiFoundryResourceName
+    keyVaultName: keyVaultName
+    redisCacheName: redisCacheName
+    vnetName: vnetName
+    useExistingVnet: useExistingVnet
+    existingVnetRG: existingVnetRG
+    apimSubnetName: apimSubnetName
+    privateEndpointSubnetName: privateEndpointSubnetName
+    functionAppSubnetName: functionAppSubnetName
+    agentSubnetName: agentSubnetName
+    apimNsgName: apimNsgName
+    privateEndpointNsgName: privateEndpointNsgName
+    functionAppNsgName: functionAppNsgName
+    agentSubnetNsgName: agentSubnetNsgName
+    apimRouteTableName: apimRouteTableName
+    vnetAddressPrefix: vnetAddressPrefix
+    apimSubnetPrefix: apimSubnetPrefix
+    privateEndpointSubnetPrefix: privateEndpointSubnetPrefix
+    functionAppSubnetPrefix: functionAppSubnetPrefix
+    agentSubnetPrefix: agentSubnetPrefix
+    foundryNetworkInjectionEnabled: foundryNetworkInjectionEnabled
+    dnsZoneRG: dnsZoneRG
+    dnsSubscriptionId: dnsSubscriptionId
+    existingPrivateDnsZones: existingPrivateDnsZones
+    storageBlobPrivateEndpointName: storageBlobPrivateEndpointName
+    storageFilePrivateEndpointName: storageFilePrivateEndpointName
+    storageTablePrivateEndpointName: storageTablePrivateEndpointName
+    storageQueuePrivateEndpointName: storageQueuePrivateEndpointName
+    cosmosDbPrivateEndpointName: cosmosDbPrivateEndpointName
+    eventHubPrivateEndpointName: eventHubPrivateEndpointName
+    apimV2PrivateEndpointName: apimV2PrivateEndpointName
+    aiFoundryPrivateEndpointName: aiFoundryPrivateEndpointName
+    keyVaultPrivateEndpointName: keyVaultPrivateEndpointName
+    redisPrivateEndpointName: redisPrivateEndpointName
+    logicAppPrivateEndpointName: logicAppPrivateEndpointName
     apimNetworkType: apimNetworkType
-    enablePIIAnonymization: enableAIGatewayPiiRedaction
+    apimV2UsePrivateEndpoint: apimV2UsePrivateEndpoint
+    apimV2PublicNetworkAccess: apimV2PublicNetworkAccess
+    logicAppUsePrivateEndpoint: logicAppUsePrivateEndpoint
+    logicAppPublicNetworkAccess: logicAppPublicNetworkAccess
+    cosmosDbPublicAccess: cosmosDbPublicAccess
+    eventHubNetworkAccess: eventHubNetworkAccess
+    aiFoundryExternalNetworkAccess: aiFoundryExternalNetworkAccess
+    keyVaultExternalNetworkAccess: keyVaultExternalNetworkAccess
+    redisPublicNetworkAccess: redisPublicNetworkAccess
+    useAzureMonitorPrivateLinkScope: useAzureMonitorPrivateLinkScope
+    createAppInsightsDashboards: createAppInsightsDashboards
     enableAIModelInference: enableAIModelInference
     enableDocumentIntelligence: enableDocumentIntelligence
-    enableOpenAIRealtime: enableOpenAIRealtime
     enableAzureAISearch: enableAzureAISearch
-    aiSearchInstances: aiSearchInstances
-    llmBackendConfig: llmBackendConfig
-    enableRedisCache: enableManagedRedis
-    redisCacheConnectionString: enableManagedRedis ? managedRedis.outputs.redisCacheConnectionString : ''
-    redisCacheResourceId: enableManagedRedis ? managedRedis.outputs.redisResourceId : ''
-    enableEmbeddingsBackend: enableManagedRedis
-    embeddingsBackendUrl: enableManagedRedis ? primaryFoundryEmbeddingsBackendUrl : ''
-    sku: apimSku
-    skuCount: apimSkuUnits
-    usePrivateEndpoint: apimV2UsePrivateEndpoint
-    apimV2PrivateEndpointName: !empty(apimV2PrivateEndpointName) ? apimV2PrivateEndpointName : '${abbrs.apiManagementService}pe-${resourceToken}'
-    apimV2PublicNetworkAccess: apimV2PublicNetworkAccess
-    privateEndpointSubnetId: useExistingVnet ? vnetExisting.outputs.privateEndpointSubnetId : vnet.outputs.privateEndpointSubnetId
-    dnsZoneRG: !useExistingVnet ? resourceGroup.name : dnsZoneRG
-    dnsSubscriptionId: !empty(dnsSubscriptionId) ? dnsSubscriptionId : subscription().subscriptionId
-    dnsZoneResourceId: existingApimGatewayDnsZoneId
-    isMCPSampleDeployed: true
+    enableAIGatewayPiiRedaction: enableAIGatewayPiiRedaction
+    enableOpenAIRealtime: enableOpenAIRealtime
+    entraAuth: entraAuth
+    enableAPICenter: enableAPICenter
+    enableManagedRedis: enableManagedRedis
     azureMonitorLogSettings: azureMonitorLogSettings
     appInsightsLogSettings: appInsightsLogSettings
-    enableUnifiedAiApi: enableUnifiedAiApi
-    enableJwtAuth: entraAuth
-    jwtTenantId: resolvedEntraTenantId
-    jwtAppRegistrationId: resolvedEntraClientId
-  }
-}
-
-// Grant the APIM SYSTEM-assigned managed identity (created by the apim module) read access
-// to Key Vault secrets and certificates. APIM uses its system-assigned identity to resolve
-// named-value Key Vault references, so this is required before any Key-Vault-backed named
-// value can be provisioned.
-module keyVaultApimSystemRbac './modules/keyvault/keyvault-apim-system-rbac.bicep' = {
-  name: 'kv-apim-system-rbac'
-  scope: resourceGroup
-  params: {
-    keyVaultName: keyVault.outputs.keyVaultName
-    apimSystemAssignedPrincipalId: apim.outputs.apimSystemAssignedPrincipalId
-  }
-}
-
-module cosmosDb './modules/cosmos-db/cosmos-db.bicep' = {
-  name: 'cosmos-db'
-  scope: resourceGroup
-  params: {
-    accountName: !empty(cosmosDbAccountName) ? cosmosDbAccountName : '${abbrs.documentDBDatabaseAccounts}${resourceToken}'
-    location: location
-    tags: tags
-    vNetName: useExistingVnet ? vnetExisting.outputs.vnetName : vnet.outputs.vnetName
-    cosmosDnsZoneName: cosmosDbPrivateDnsZoneName
-    cosmosPrivateEndpointName: !empty(cosmosDbPrivateEndpointName) ? cosmosDbPrivateEndpointName : '${abbrs.documentDBDatabaseAccounts}pe-${resourceToken}'
-    privateEndpointSubnetName: useExistingVnet ? vnetExisting.outputs.privateEndpointSubnetName : vnet.outputs.privateEndpointSubnetName
-    vNetRG: useExistingVnet ? vnetExisting.outputs.vnetRG : vnet.outputs.vnetRG
-    dnsZoneRG: !useExistingVnet ? resourceGroup.name : dnsZoneRG
-    dnsSubscriptionId: !empty(dnsSubscriptionId) ? dnsSubscriptionId : subscription().subscriptionId
-    dnsZoneResourceId: existingCosmosDbDnsZoneId
-    throughput: cosmosDbRUs
-    publicAccess: cosmosDbPublicAccess
-  }
-}
-
-// Grant the usage managed identity the Cosmos DB native data-contributor role. This is split into
-// its own deployment (after both Cosmos DB and the managed identity exist) so the identity's
-// principal has replicated in AAD, avoiding the transient "principal ID was not found in the AAD
-// tenant" error that Cosmos DB raises when validating a freshly created principal.
-module usageCosmosSqlRole './modules/cosmos-db/cosmos-sql-role-assignment.bicep' = {
-  name: 'logicapp-usage-cosmos-sql-role'
-  scope: resourceGroup
-  params: {
-    cosmosDbAccountName: cosmosDb.outputs.cosmosDbAccountName
-    principalId: usageManagedIdentity.outputs.managedIdentityPrincipalId
-  }
-}
-
-module storageAccount './modules/functionapp/storageaccount.bicep' = {
-  name: 'storage'
-  scope: resourceGroup
-  params: {
-    location: location
-    tags: tags
-    storageAccountName: !empty(storageAccountName) ? storageAccountName : 'funcusage${resourceToken}'
-    functionAppManagedIdentityName: usageManagedIdentity.outputs.managedIdentityName
-    vNetName: useExistingVnet ? vnetExisting.outputs.vnetName : vnet.outputs.vnetName
-    privateEndpointSubnetName: useExistingVnet ? vnetExisting.outputs.privateEndpointSubnetName : vnet.outputs.privateEndpointSubnetName
-    storageBlobDnsZoneName: storageBlobPrivateDnsZoneName
-    storageFileDnsZoneName: storageFilePrivateDnsZoneName
-    storageTableDnsZoneName: storageTablePrivateDnsZoneName
-    storageQueueDnsZoneName: storageQueuePrivateDnsZoneName
-    storageBlobPrivateEndpointName: !empty(storageBlobPrivateEndpointName) ? storageBlobPrivateEndpointName : '${abbrs.storageStorageAccounts}blob-pe-${resourceToken}'
-    storageFilePrivateEndpointName: !empty(storageFilePrivateEndpointName) ? storageFilePrivateEndpointName : '${abbrs.storageStorageAccounts}file-pe-${resourceToken}'
-    storageTablePrivateEndpointName: !empty(storageTablePrivateEndpointName) ? storageTablePrivateEndpointName : '${abbrs.storageStorageAccounts}table-pe-${resourceToken}'
-    storageQueuePrivateEndpointName: !empty(storageQueuePrivateEndpointName) ? storageQueuePrivateEndpointName : '${abbrs.storageStorageAccounts}queue-pe-${resourceToken}'
+    apimSku: apimSku
+    apimSkuUnits: apimSkuUnits
+    eventHubCapacityUnits: eventHubCapacityUnits
+    cosmosDbRUs: cosmosDbRUs
+    logicAppsSkuCapacityUnits: logicAppsSkuCapacityUnits
+    apicSku: apicSku
+    keyVaultSkuName: keyVaultSkuName
+    redisSkuName: redisSkuName
+    redisSkuCapacity: redisSkuCapacity
+    redisMinimumTlsVersion: redisMinimumTlsVersion
+    redisHighAvailability: redisHighAvailability
     logicContentShareName: logicContentShareName
-    vNetRG: useExistingVnet ? vnetExisting.outputs.vnetRG : vnet.outputs.vnetRG
-    dnsZoneRG: !useExistingVnet ? resourceGroup.name : dnsZoneRG
-    dnsSubscriptionId: !empty(dnsSubscriptionId) ? dnsSubscriptionId : subscription().subscriptionId
-    storageBlobDnsZoneResourceId: existingStorageBlobDnsZoneId
-    storageFileDnsZoneResourceId: existingStorageFileDnsZoneId
-    storageTableDnsZoneResourceId: existingStorageTableDnsZoneId
-    storageQueueDnsZoneResourceId: existingStorageQueueDnsZoneId
+    aiSearchInstances: aiSearchInstances
+    aiFoundryInstances: aiFoundryInstances
+    aiFoundryModelsConfig: aiFoundryModelsConfig
+    primaryFoundryEmbeddingModelName: primaryFoundryEmbeddingModelName
+    entraTenantId: entraTenantId
+    entraClientId: entraClientId
+    entraAudience: entraAudience
+    entraClientSecret: entraClientSecret
+    enableUnifiedAiApi: enableUnifiedAiApi
   }
 }
 
-module logicApp './modules/logicapp/logicapp.bicep' = {
-  name: 'usageLogicApp'
-  scope: resourceGroup
-  params: {
-    location: location
-    tags: tags
-    logicAppName: !empty(usageProcessingLogicAppName) ? usageProcessingLogicAppName : '${abbrs.logicWorkflows}usage-${resourceToken}'
-    azdserviceName: 'usageProcessingLogicApp'   
-    storageAccountName: storageAccount.outputs.storageAccountName
-    applicationInsightsName: monitoring.outputs.funcApplicationInsightsName
-    skuFamily: 'WS'
-    skuName: 'WS1'
-    skuCapaicty: logicAppsSkuCapacityUnits
-    skuSize: 'WS1'
-    skuTier: 'WorkflowStandard'
-    isReserved: false
-    cosmosDbAccountName: cosmosDb.outputs.cosmosDbAccountName
-    eventHubName: eventHub.outputs.eventHubName
-    eventHubNamespaceName: eventHub.outputs.eventHubNamespaceName
-    cosmosDBDatabaseName: cosmosDb.outputs.cosmosDbDatabaseName
-    cosmosDBContainerConfigName: cosmosDb.outputs.cosmosDbStreamingExportConfigContainerName
-    cosmosDBContainerUsageName: cosmosDb.outputs.cosmosDbContainerName
-    cosmosDBContainerPIIName: cosmosDb.outputs.cosmosDbPiiUsageContainerName
-    cosmosDBContainerLLMUsageName: cosmosDb.outputs.cosmosDbLLMUsageContainerName
-    eventHubPIIName: eventHub.outputs.eventHubPIIName
-    apimAppInsightsName: monitoring.outputs.apimApplicationInsightsName
-    functionAppSubnetId: useExistingVnet ? vnetExisting.outputs.functionAppSubnetId : vnet.outputs.functionAppSubnetId
-    fileShareName: logicContentShareName
-  }
-}
-
-module apiCenter './modules/apic/apic.bicep' = if(enableAPICenter) {
-  name: 'api-center'
-  scope: resourceGroup
-  params: {
-    apicServiceName: !empty(apicServiceName) ? apicServiceName : '${abbrs.apiCenterService}${resourceToken}'
-    apicsku: apicSku
-    location: !empty(apicLocation) ? apicLocation : location
-    tags: tags
-  }
-}
-
-module apiCenterOnboarding './modules/apim/api-center-onboarding-all.bicep' = if(enableAPICenter) {
-  name: 'api-center-onboarding'
-  scope: resourceGroup
-  params: {
-    apiCenterServiceName: enableAPICenter ? apiCenter.outputs.name : ''
-    apiCenterWorkspaceName: enableAPICenter ? apiCenter.outputs.defaultWorkspaceName : 'default'
-    apimGatewayUrl: apim.outputs.apimGatewayUrl
-    isMCPSampleDeployed: true
-    enableAzureAISearch: enableAzureAISearch
-    enableAIModelInference: enableAIModelInference
-    enableOpenAIRealtime: enableOpenAIRealtime
-    enableDocumentIntelligence: enableDocumentIntelligence
-  }
-  dependsOn: [
-    apim
-    apiCenter
-  ]
-}
-
-// Grant AI Foundry resources access to Key Vault (deployed after both Key Vault and Foundry)
-module keyVaultFoundryRbac './modules/keyvault/keyvault-rbac.bicep' = {
-  name: 'key-vault-foundry-rbac'
-  scope: resourceGroup
-  params: {
-    keyVaultName: keyVault.outputs.keyVaultName
-    aiFoundryPrincipalIds: foundry.outputs.aiFoundryPrincipalIds
-  }
-  dependsOn: [
-    keyVault
-    foundry
-  ]
-}
-
-output APIM_NAME string = apim.outputs.apimName
-output APIM_AOI_PATH string = apim.outputs.apimOpenaiApiPath
-output APIM_GATEWAY_URL string = apim.outputs.apimGatewayUrl
+output APIM_NAME string = resources.outputs.APIM_NAME
+output APIM_AOI_PATH string = resources.outputs.APIM_AOI_PATH
+output APIM_GATEWAY_URL string = resources.outputs.APIM_GATEWAY_URL
 output AZURE_RESOURCE_GROUP string = resourceGroup.name
-output AI_FOUNDRY_SERVICES array = foundry.outputs.extendedAIServicesConfig
-output LLM_BACKEND_CONFIG array = llmBackendConfig
-output KEY_VAULT_NAME string = keyVault.outputs.keyVaultName
-output KEY_VAULT_URI string = keyVault.outputs.keyVaultUri
-output ENTRA_AUTH_ENABLED bool = entraAuth
-output ENTRA_CLIENT_ID string = resolvedEntraClientId
-output ENTRA_TENANT_ID string = resolvedEntraTenantId
-output ENTRA_AUDIENCE string = resolvedEntraAudience
-output COSMOS_DB_ACCOUNT_NAME string = cosmosDb.outputs.cosmosDbAccountName
-output EVENT_HUB_NAME string = eventHub.outputs.eventHubName
+output AI_FOUNDRY_SERVICES array = resources.outputs.AI_FOUNDRY_SERVICES
+output LLM_BACKEND_CONFIG array = resources.outputs.LLM_BACKEND_CONFIG
+output KEY_VAULT_NAME string = resources.outputs.KEY_VAULT_NAME
+output KEY_VAULT_URI string = resources.outputs.KEY_VAULT_URI
+output ENTRA_AUTH_ENABLED bool = resources.outputs.ENTRA_AUTH_ENABLED
+output ENTRA_CLIENT_ID string = resources.outputs.ENTRA_CLIENT_ID
+output ENTRA_TENANT_ID string = resources.outputs.ENTRA_TENANT_ID
+output ENTRA_AUDIENCE string = resources.outputs.ENTRA_AUDIENCE
+output COSMOS_DB_ACCOUNT_NAME string = resources.outputs.COSMOS_DB_ACCOUNT_NAME
+output EVENT_HUB_NAME string = resources.outputs.EVENT_HUB_NAME

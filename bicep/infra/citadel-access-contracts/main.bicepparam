@@ -214,6 +214,38 @@ param apiNameMapping = {
 //   policyXml: '' // Uses default policy from ./policies/default-ai-product-policy.xml
 // }
 //
+// ----------------------------------------------------------------------------
+// MULTI-ASSET CONTRACTS (LLM + Tools/MCP + Agents/A2A in ONE product)
+// ----------------------------------------------------------------------------
+// A single product shares ONE api-key (apiKeySecretName) across every granted
+// asset. Because each asset (LLM inference API, published Tool, published Agent)
+// has its own gateway path, publish an endpoint secret PER asset with either:
+//
+//   * assetEndpoints — explicit list; empty endpointSecretName auto-generates
+//     <code>-<businessUnit>-<useCase>-<env>-<apiName>-endpoint
+//   * publishAllAssetEndpoints: true — auto-publish an endpoint secret for EVERY
+//     API in apiNameMapping[code] (names overridable via assetEndpoints)
+//
+// foundryApiName selects which granted API is the LLM endpoint wired to the
+// Foundry connection (Foundry supports the LLM endpoint only). It defaults to the
+// first known LLM API, else the first API.
+//
+// Example (MULTI product granting LLM + a Tool + an Agent, KV endpoint per asset):
+// param apiNameMapping = { MULTI: ['universal-llm-api', 'weather-tool', 'hr-chat-agent'] }
+// param services = [
+//   {
+//     code: 'MULTI'
+//     apiKeySecretName: 'HR_CHATAGENT_KEY'          // one shared key for the contract
+//     foundryApiName: 'universal-llm-api'           // Foundry connects to the LLM endpoint
+//     assetEndpoints: [
+//       { apiName: 'universal-llm-api', endpointSecretName: 'HR_CHATAGENT_LLM_ENDPOINT' }
+//       { apiName: 'weather-tool' }                 // auto-named endpoint secret
+//       { apiName: 'hr-chat-agent' }                // auto-named endpoint secret
+//     ]
+//     policyXml: loadTextContent('ai-product-policy.xml')
+//   }
+// ]
+//
 // ============================================================================
 param services = [
   {
@@ -299,6 +331,15 @@ param foundry = {
 //   Default: Uses '<businessUnit>-<useCaseName>-<environment>' from useCase
 //   Final name: '<prefix>-<serviceCode>' (e.g., 'HR-ChatBot-DEV-LLM')
 //
+// - authType: Connection authentication mode
+//   'ProjectManagedIdentity' (default): Foundry project managed identity presents an Entra ID Bearer
+//     token (audience = managedIdentityAudience) AND the subscription key is sent as the 'api-key'
+//     custom header. The product policy MUST validate the JWT for that audience (see the policy guide).
+//   'ApiKey': subscription key only, stored in credentials.key (original behavior, fully backward compatible)
+//
+// - managedIdentityAudience: Audience the project MI requests a token for (only for ProjectManagedIdentity)
+//   Default: 'https://cognitiveservices.azure.com' — must match the JWT audience validated by the policy
+//
 // - deploymentInPath: Controls how model names are passed in requests
 //   'true': Model name in URL path (/deployments/{model}/chat/completions)
 //   'false': Model name in request body ({"model": "{model}"})
@@ -335,6 +376,8 @@ param foundry = {
 // ============================================================================
 param foundryConfig = {
   connectionNamePrefix: ''           // Empty = use useCase naming convention
+  authType: 'ProjectManagedIdentity' // Default: MI Bearer token (JWT) + api-key custom header. 'ApiKey' = subscription key only
+  managedIdentityAudience: 'https://cognitiveservices.azure.com' // MI token audience; product policy must validate this JWT
   deploymentInPath: 'false'          // Model name in request body (false for Azure OpenAI /deployments/[deployment-id])
   isSharedToAll: false               // Share with all project users
   inferenceAPIVersion: ''            // Empty = APIM defaults
@@ -343,9 +386,100 @@ param foundryConfig = {
   listModelsEndpoint: ''             // Empty = APIM defaults (/deployments)
   getModelEndpoint: ''               // Empty = APIM defaults (/deployments/{deployment-id})
   deploymentProvider: ''             // Empty = AzureOpenAI format
-  customHeaders: {}                  // No custom headers
+  customHeaders: {}                  // No custom headers (api-key added automatically for ProjectManagedIdentity)
   authConfig: {}                     // Default api-key header is used
 }
+
+// ============================================================================
+// OPTIONAL: Business Continuity & Resiliency (multi-instance)
+// ============================================================================
+// All parameters below are OPTIONAL and default to empty. Leaving them unset
+// keeps the exact existing behavior (single primary APIM gateway + primary
+// Key Vault + primary Foundry). Populate them to mirror THIS single contract
+// across additional APIM gateways / Key Vaults / Foundry instances so the
+// contract keeps working if the primary instance/region becomes unavailable.
+//
+// Key guarantee: the subscription key generated by the PRIMARY gateway is
+// reused (as an explicit key) on every additional gateway, so clients use the
+// SAME api-key regardless of which gateway serves the request.
+//
+// For full guidance see: ./access-contract-resiliency-guide.md
+// ----------------------------------------------------------------------------
+
+// Global endpoint fronting all gateways (e.g. Azure Front Door / Traffic Manager).
+// When set, this URL is used as the endpoint base stored in ALL Key Vault secrets
+// and Foundry connections (primary + additional). Empty = use primary APIM gateway.
+param globalGatewayUrl = ''
+
+// Additional APIM gateways to mirror this contract into (deployed AFTER primary,
+// reusing the primary subscription key). Each item: { subscriptionId, resourceGroupName, name }.
+// Example:
+// param additionalApimGateways = [
+//   {
+//     subscriptionId: '00000000-0000-0000-0000-000000000000'
+//     resourceGroupName: 'rg-apim-secondary'
+//     name: 'apim-instance-secondary'
+//   }
+// ]
+param additionalApimGateways = []
+
+// Additional Key Vaults to also store the endpoint + shared key.
+// endpointSource selects which endpoint URL is stored:
+//   'global'        -> globalGatewayUrl
+//   'primary'       -> primary APIM gateway URL
+//   'secondary:<n>' -> additionalApimGateways[n] gateway URL (0-based index)
+//   ''  (default)   -> globalGatewayUrl if set, else primary gateway URL
+// Example:
+// param additionalKeyVaults = [
+//   {
+//     subscriptionId: '00000000-0000-0000-0000-000000000000'
+//     resourceGroupName: 'rg-keyvault-secondary'
+//     name: 'kv-secondary'
+//     endpointSource: 'secondary:0'
+//   }
+// ]
+param additionalKeyVaults = []
+
+// Additional Foundry instances to also create APIM connections in.
+// endpointSource behaves the same as additionalKeyVaults above.
+// Example:
+// param additionalFoundries = [
+//   {
+//     subscriptionId: '00000000-0000-0000-0000-000000000000'
+//     resourceGroupName: 'rg-foundry-secondary'
+//     accountName: 'foundry-account-secondary'
+//     projectName: 'foundry-project-secondary'
+//     endpointSource: ''
+//   }
+// ]
+param additionalFoundries = []
+
+// ============================================================================
+// OPTIONAL: Zero-downtime Key Rotation
+// ============================================================================
+// All parameters below are OPTIONAL. Defaults (usePrimaryKey=true,
+// keyRotationEnabled=false) reproduce the existing behavior exactly (primary
+// key active, nothing regenerated). Use the 3-step flow to rotate a key with
+// no downtime: (1) switch consumers to the standby key, (2) confirm they are
+// healthy, (3) regenerate the now non-active key.
+//
+// For full guidance see: ./access-contract-key-rotation-guide.md
+// ----------------------------------------------------------------------------
+
+// Which subscription key is ACTIVE (handed to consumers via Key Vault / Foundry
+// / additional gateways). true = primary (default), false = secondary.
+// Set to false as step 1 of rotation to move all services onto the secondary
+// key while the primary remains valid (no downtime).
+param usePrimaryKey = true
+
+// When true, the NON-active key is regenerated (its old value is invalidated).
+// Enable this ONLY as the final rotation step, after consumers are confirmed
+// healthy on the active key.
+param keyRotationEnabled = false
+
+// Optional explicit rotation key for deterministic re-runs. Empty (default) =
+// a fresh 64-char key is auto-generated on each rotation deployment.
+param rotationKeyOverride = ''
 
 // ============================================================================
 // DEPLOYMENT NOTES

@@ -181,10 +181,20 @@
                 return "non-llm-request";
             }
 
-            // DELETE requests on responses API don't need a model
-            if (method.Equals("DELETE", StringComparison.OrdinalIgnoreCase) && apiType.StartsWith("responses"))
+            // DELETE on responses operations doesn't carry a model — it's hydrated from the
+            // response-id cache downstream (responses-id-security). Covers the native responses
+            // api-types (responses, responses-v1) AND the openai-compat surface
+            // (DELETE /unified-ai/v1/responses/{id}). File deletes (DELETE /v1/files/{id}) are
+            // deliberately NOT matched here so they resolve the routing model from the
+            // x-ai-model header fallback below.
+            if (method.Equals("DELETE", StringComparison.OrdinalIgnoreCase))
             {
-                return "non-llm-request";
+                var deletePath = context.Variables.GetValueOrDefault<string>("routing-processed-path", String.Empty);
+                if (apiType.StartsWith("responses")
+                    || deletePath.IndexOf("/responses", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return "non-llm-request";
+                }
             }
 
             // Try body first (works for all API types — including claude-native /v1/messages where model is in body)
@@ -249,6 +259,15 @@
                     }
                 }
             }
+
+            // Universal x-ai-model header fallback: for any api-type whose model is neither in a
+            // parseable JSON body nor in the URL path — e.g. multipart file uploads/edits
+            // (POST /v1/files, /v1/images/edits) and file DELETEs (DELETE /v1/files/{id}) —
+            // clients pass the routing model via the `x-ai-model` header. Mirrors the shared
+            // frag-set-llm-requested-model fallback so Universal LLM, Azure OpenAI, and Unified
+            // AI resolve the model identically across all surfaces.
+            var headerModel = context.Request.Headers.GetValueOrDefault("x-ai-model", String.Empty);
+            if (!String.IsNullOrEmpty(headerModel)) { return headerModel; }
         } catch { }
         return String.Empty;
     }" />
@@ -267,13 +286,16 @@
     <set-variable name="openai-compat-operation" value="@{
         var apiType = context.Variables.GetValueOrDefault<string>("api-type", "");
         if (!apiType.Equals("openai-compat", StringComparison.OrdinalIgnoreCase)
-            && !apiType.Equals("inference", StringComparison.OrdinalIgnoreCase)) {
+            && !apiType.Equals("inference", StringComparison.OrdinalIgnoreCase)
+            && !apiType.Equals("image", StringComparison.OrdinalIgnoreCase)) {
             return String.Empty;
         }
         var path = context.Variables.GetValueOrDefault<string>("routing-processed-path", "");
         // Strip the api-type's base-path prefix to leave the operation segment.
-        // openai-compat base-path = /v1   ; inference base-path = /models
-        string prefix = apiType.Equals("openai-compat", StringComparison.OrdinalIgnoreCase) ? "/v1/" : "/models/";
+        // openai-compat base-path = /v1 ; inference base-path = /models ;
+        // image base-path = /v1/images but we strip only /v1/ so the operation keeps the
+        // images/ prefix (images/generations | images/edits) to match backend-path-templates.
+        string prefix = apiType.Equals("inference", StringComparison.OrdinalIgnoreCase) ? "/models/" : "/v1/";
         var idx = path.IndexOf(prefix, StringComparison.OrdinalIgnoreCase);
         if (idx >= 0) {
             return path.Substring(idx + prefix.Length).TrimEnd('/');
@@ -313,10 +335,14 @@
                     <value>application/json</value>
                 </set-header>
                 <set-body>@{
+                    var apiType = context.Variables.GetValueOrDefault<string>("api-type", "");
+                    var msg = apiType.Equals("image", StringComparison.OrdinalIgnoreCase)
+                        ? "Model could not be detected. For multipart file/uploads edits (POST /v1/images/edits) supply the model via the 'x-ai-model' request header. For JSON image generations include the 'model' field in the request body, or use the /openai/deployments/{model}/images/{generations|edits} path form."
+                        : "Model could not be detected from request body, x-ai-model header, or path";
                     return new JObject(
                         new JProperty("error", new JObject(
-                            new JProperty("message", "Model could not be detected from request body or path"),
-                            new JProperty("type", "invalid_request_error"),
+                            new JProperty("message", msg),
+                            new JProperty("type", "processing_invalid_request_error"),
                             new JProperty("code", "missing_model_parameter"),
                             new JProperty("param", "model")
                         ))

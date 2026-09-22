@@ -72,9 +72,12 @@ param isMCPSampleDeployed bool = false
  * 
  * Structure:
  * - backendId: Unique identifier for the backend (used in APIM backend resource name)
- * - backendType: Type of backend ('ai-foundry', 'azure-openai', 'external')
+ * - backendType: Type of backend ('ai-foundry', 'azure-openai', 'aws-bedrock', 'aws-bedrock-mantle', 'gemini', 'gemini-openai', 'anthropic', 'external')
  * - endpoint: Base URL for the backend service
- * - authScheme: Authentication method ('managedIdentity', 'apiKey', 'token')
+ * - authScheme: (Legacy) Authentication method ('managedIdentity', 'apiKey', 'token') — superseded by authType
+ * - authType: (Optional) 'managed-identity' | 'aws-sigv4' | 'api-key-bearer' | 'api-key-header' | 'api-key-gemini' | 'api-key-anthropic' | 'none'.
+ *             When omitted, it is derived from backendType (ai-foundry/azure-openai → managed-identity).
+ * - authConfig: (Optional) { namedValueKey: 'apim-named-value', keyVaultSecretUri?: '...', secretValue?: '...' } for api-key-* auth types
  * - supportedModels: Array of model objects with:
  *     - name: Model name (required)
  *     - sku: (Optional) SKU name for deployment (default: 'Standard')
@@ -371,6 +374,16 @@ module llmPolicyFragments './llm-policy-fragments.bicep' =  {
     policyFragmentConfig: llmBackendPools.outputs.policyFragmentConfig
     managedIdentityClientId: managedIdentity.properties.clientId
     llmBackendConfig: llmBackendConfig
+    // Backend contract reporting (surfaced via GET /version/backend-contract). The primary
+    // deployment enables the circuit breaker; session affinity and model aliases are features
+    // of the LLM onboarding submodule, so they are reported as inactive here until onboarding runs.
+    apimTarget: {
+      subscriptionId: subscription().subscriptionId
+      resourceGroupName: resourceGroup().name
+      name: apimService.name
+    }
+    configureCircuitBreaker: true
+    configureSessionAffinity: false
   }
 }
 
@@ -434,7 +447,7 @@ module apimOpenaiApi './inference-api.bicep' = {
     inferenceAPIName: 'azure-openai-api'
     inferenceAPIPath: ''
     inferenceAPIType: 'AzureOpenAI'
-    inferenceAPIDisplayName: 'Azure OpenAI API'
+    inferenceAPIDisplayName: 'Azure OpenAI (Legacy)'
     inferenceAPIDescription: 'Azure OpenAI API to route requests to different LLM providers including Azure OpenAI, AI Foundry and 3rd party models.'
     allowSubscriptionKey: entraAuth ? false:true
     apimLoggerId: apimAzMonitorLogger.id
@@ -447,6 +460,14 @@ module apimOpenaiApi './inference-api.bicep' = {
     llmBackends
     llmBackendPools
     llmPolicyFragments
+    // Serialize OpenAPI import with the Universal LLM API. Both specs declare the
+    // same global operation tags (Chat, Embeddings, Audio, Images, Files, Models,
+    // Threads, Vector Stores, etc.). APIM creates these tags at service scope during
+    // import; running the two imports in parallel makes both try to CREATE the same
+    // tag simultaneously, causing the transient "Tag with the same name already
+    // exists" (ValidationError). Import tolerates pre-existing tags (hence retries
+    // succeed), so forcing sequential import guarantees a clean first-run.
+    apiUniversalLLM
   ]
 }
 
@@ -464,6 +485,21 @@ module apiUnifiedAI './unified-ai-api.bicep' = if (enableUnifiedAiApi) {
     policyFragments
     llmBackends
     llmBackendPools
+    llmPolicyFragments
+  ]
+}
+
+////// Release Version API /////////////
+// Lightweight API exposing a single GET operation that returns the accelerator
+// release manifest (release.json) as static JSON content via a mock response.
+module apiReleaseVersion './version-api.bicep' = {
+  name: 'release-version-api'
+  params: {
+    apiManagementName: apimService.name
+  }
+  dependsOn: [
+    // The backend-contract operation includes the dynamically generated
+    // 'backend-contract' policy fragment, which must exist first.
     llmPolicyFragments
   ]
 }

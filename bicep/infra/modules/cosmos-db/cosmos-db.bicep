@@ -51,6 +51,12 @@ param piiUsageContainerName string = 'pii-usage-container'
 @description('The name for the container')
 param llmUsageContainerName string = 'llm-usage-container'
 
+@description('The name for the published Tools (MCP) usage container')
+param mcpUsageContainerName string = 'mcp-usage-container'
+
+@description('The name for the published Agents (A2A) usage container')
+param agentUsageContainerName string = 'agent-usage-container'
+
 @description('The name for the container')
 param streamingExportConfigContainerName string = 'streaming-export-config'
 
@@ -252,6 +258,56 @@ resource llmUsageContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/c
   }
 }
 
+// Published Tools (MCP) usage. Fed by the mcp-usage-ingestion Logic App which aggregates the
+// 'mcp-usage' App Insights custom metrics (mirrors the LLM usage pipeline).
+resource mcpUsageContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-02-15-preview' = {
+  parent: database
+  name: mcpUsageContainerName
+  properties: {
+    resource: {
+      id: mcpUsageContainerName
+      partitionKey: {
+        paths: [
+          '/productName'
+        ]
+        kind: 'Hash'
+      }
+      indexingPolicy: {
+        indexingMode: 'consistent'
+        automatic: true
+      }
+    }
+    options: {
+      throughput: throughput
+    }
+  }
+}
+
+// Published Agents (A2A) usage. Fed by the agent-usage-ingestion Logic App which aggregates the
+// 'a2a-usage' App Insights custom metrics.
+resource agentUsageContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-02-15-preview' = {
+  parent: database
+  name: agentUsageContainerName
+  properties: {
+    resource: {
+      id: agentUsageContainerName
+      partitionKey: {
+        paths: [
+          '/productName'
+        ]
+        kind: 'Hash'
+      }
+      indexingPolicy: {
+        indexingMode: 'consistent'
+        automatic: true
+      }
+    }
+    options: {
+      throughput: throughput
+    }
+  }
+}
+
 module privateEndpoint '../networking/private-endpoint.bicep' = {
   name: '${accountName}-pe'
   params: {
@@ -276,6 +332,8 @@ output cosmosDbDatabaseName string = database.name
 output cosmosDbContainerName string = container.name
 output cosmosDbPiiUsageContainerName string = piiUsageContainer.name
 output cosmosDbLLMUsageContainerName string = llmUsageContainer.name
+output cosmosDbMcpUsageContainerName string = mcpUsageContainer.name
+output cosmosDbAgentUsageContainerName string = agentUsageContainer.name
 output cosmosDbPricingContainerName string = modelPricingContainer.name
 output cosmosDbStreamingExportConfigContainerName string = streamingExportConfigContainer.name
 output resourceId string = database.id

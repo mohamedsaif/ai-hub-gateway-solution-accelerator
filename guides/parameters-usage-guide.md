@@ -48,6 +48,15 @@ This file contains **all** available parameters with default values and detailed
 - `main.parameters.dev.bicepparam` - Development environment optimized for cost
 - `main.parameters.prod.bicepparam` - Production environment with HA configuration
 
+### 4. `resources.parameters.<env>.bicepparam` (Exception - existing resource group)
+
+Create this file only when subscription-scoped deployment is not possible and the hub resource group already exists. Copy the values from the matching `main.parameters.<env>.bicepparam` file, omit `resourceGroupName`, and point the file at `resources.bicep`. 
+
+**Use this file as a template when:**
+- Deploying directly with Azure CLI or Bicep
+- Targeting an existing resource group
+- Avoiding subscription-scope resource group creation
+  
 ## Deployment Methods
 
 ### Method 1: Using Azure Developer CLI (azd) - Recommended for Quick Start
@@ -113,6 +122,30 @@ For more control, use Bicep parameter files (.bicepparam) directly with Azure CL
    
    Note: Use the file path directly (no @ prefix needed for .bicepparam files)
 
+### Method 3: Using Azure CLI with Bicep Parameters File and Existing Resource Group
+
+Create `resources.parameters.<env>.bicepparam` only when subscription-scoped deployment is not possible and the target resource group already exists. This deploys the same hub resources as the subscription wrapper, but skips resource group creation and uses an Azure CLI resource-group deployment.
+
+**Steps:**
+
+1. **Confirm the target resource group exists** in the target subscription.
+
+2. **Create a resource-scope parameter file** such as `bicep/infra/resources.parameters.dev.bicepparam`. Copy the values from `main.parameters.dev.bicepparam`, remove `resourceGroupName`, and start the file with `using './resources.bicep'`.
+
+3. **Preview and deploy using Azure CLI:**
+
+   ```powershell
+   az deployment group what-if `
+     --resource-group "<existing-hub-resource-group>" `
+     --template-file "bicep/infra/resources.bicep" `
+     --parameters "bicep/infra/resources.parameters.dev.bicepparam"
+
+   az deployment group create `
+     --resource-group "<existing-hub-resource-group>" `
+     --template-file "bicep/infra/resources.bicep" `
+     --parameters "bicep/infra/resources.parameters.dev.bicepparam"
+   ```
+
 ## Parameter File Structure
 
 ### Understanding the Complete Parameters File
@@ -148,6 +181,51 @@ param apimNetworkType = 'External'
 param foundryNetworkInjectionEnabled = true
 param agentSubnetPrefix = '10.170.0.192/26'
 ```
+
+##### Logic App Private Access
+
+The usage-ingestion Logic App supports optional inbound private connectivity. Defaults remain unchanged: no template-created Logic App private endpoint and public network access enabled. These settings are available in both [main.bicepparam](../bicep/infra/main.bicepparam) and [resources.bicepparam](../bicep/infra/resources.bicepparam); custom environment parameter files must include any overrides explicitly.
+
+**Private Endpoint names**
+
+| Parameter | Environment Variable | Default | Description |
+|-----------|----------------------|---------|-------------|
+| `logicAppPrivateEndpointName` | `LOGIC_APP_PE_NAME` | `''` | Optional endpoint resource name. Empty uses `logic-pe-${resourceToken}`. |
+
+**Services network access configuration**
+
+| Parameter | Environment Variable | Default | Description |
+|-----------|----------------------|---------|-------------|
+| `logicAppUsePrivateEndpoint` | `LOGIC_APP_USE_PRIVATE_ENDPOINT` | `false` | Create a Logic App private endpoint in the existing private-endpoint subnet. |
+| `logicAppPublicNetworkAccess` | `LOGIC_APP_PUBLIC_NETWORK_ACCESS` | `true` | Allow public website and SCM/Kudu access, subject to authentication and other access controls. |
+
+**Existing Private DNS Zones**
+
+| Setting | Environment Variable | Default | Description |
+|---------|----------------------|---------|-------------|
+| `existingPrivateDnsZones.logicApp` | `EXISTING_DNS_ZONE_LOGIC_APP` | `''` | Resource ID of an existing `privatelink.azurewebsites.net` zone. Takes precedence over `dnsZoneRG` / `dnsSubscriptionId`. |
+
+The two Boolean flags are independent:
+
+| `logicAppUsePrivateEndpoint` | `logicAppPublicNetworkAccess` | Result |
+|------------------------------|-------------------------------|--------|
+| `false` | `true` | Default: public access enabled; no template-created endpoint. |
+| `true` | `true` | Private and public access enabled; optional staged verification when policy permits. |
+| `true` | `false` | Private-only website and SCM access; private connectivity and DNS are required for workflow publishing. |
+| `false` | `false` | Public access disabled without a template-created endpoint. Requires a working externally managed endpoint and DNS for website/SCM access. |
+
+The templates do not reject the last combination or enforce DNS readiness. For an existing VNet, supply the Logic App zone ID or `dnsZoneRG`, and configure zone links or forwarding. See [Logic App networking](./network-approach.md#logic-app-private-connectivity) for DNS selection and subnet details.
+
+For a private-only initial deployment, set these values in the azd environment file described above:
+
+```dotenv
+LOGIC_APP_USE_PRIVATE_ENDPOINT="true"
+LOGIC_APP_PUBLIC_NETWORK_ACCESS="false"
+```
+
+For a reused DNS zone, also set `EXISTING_DNS_ZONE_LOGIC_APP` to its resource ID; set `LOGIC_APP_PE_NAME` only when overriding the generated endpoint name. A new VNet can use automatic local zone creation when neither a zone ID nor `dnsZoneRG` is supplied.
+
+These settings apply to the main/resource-group initial-deployment templates, not the separate APIM gateway-upgrade supporting-services templates. Before deploying workflows with public access disabled, prepare a privately connected publishing machine or runner as described in the [Full Deployment Guide](./full-deployment-guide.md#private-only-logic-app-publishing).
 
 #### 4. **Feature Flags**
 Enable or disable specific capabilities:
@@ -465,11 +543,12 @@ param environmentName = 'citadel-dev'
 ## Quick Reference
 
 | Deployment Scenario | Command | Parameters File |
-|-------------------|---------|-----------------||
+|-------------------|---------|-----------------|
 | Quick start with azd | `azd up` | `main.bicepparam` (auto) |
 | Development deployment | `az deployment sub create --parameters main.parameters.dev.bicepparam` | `main.parameters.dev.bicepparam` |
 | Production deployment | `az deployment sub create --parameters main.parameters.prod.bicepparam` | `main.parameters.prod.bicepparam` |
 | Full customization | `az deployment sub create --parameters main.parameters.complete.bicepparam` | `main.parameters.complete.bicepparam` |
+| Existing resource group deployment | `az deployment group create --parameters resources.parameters.<env>.bicepparam` | User-created `resources.parameters.<env>.bicepparam` |
 | Preview changes | `az deployment sub what-if --parameters <file.bicepparam>` | Any .bicepparam file |
 
 ## Next Steps

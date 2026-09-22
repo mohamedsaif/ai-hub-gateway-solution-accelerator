@@ -419,6 +419,7 @@ infra/usecase-onboarding/samples/financial-assistant-usecase-local.sh
 .venv/**
 validation-local/**
 bicep/infra/citadel-access-contracts/contracts
+bicep/infra/citadel-publish-contracts/contracts
 bicep/infra/citadel-access-contracts/contracts/testing-unifiedai/dev/main.bicepparam
 bicep/infra/citadel-access-contracts/contracts/testing-unifiedai/dev/ai-product-policy.xml
 bicep/infra/citadel-access-contracts/contracts/support-bot/dev/main.bicepparam
@@ -428,3 +429,5 @@ bicep/infra/citadel-access-contracts/contracts/sales-assistant/dev/ai-product-po
 bicep/infra/citadel-access-contracts/contracts/hr-chatagent/dev/main.bicepparam
 bicep/infra/citadel-access-contracts/contracts/hr-chatagent/dev/ai-product-policy.xml
 bicep/infra/llm-backend-onboarding/llm-backends-aliases-validation.bicepparam
+bicep/infra/llm-backend-onboarding/main.bicepparam
+scripts/generate-lean-openapi.py
